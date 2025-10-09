@@ -1,18 +1,45 @@
 <?php
 // notificacoes.php
-require_once 'config.php';
+require_once __DIR__ . '/../../config.php';
 
 $mensagem = '';
+$numero_inicial_notificacao = 1; // Valor de fallback padrão
+
+// --- CARREGA CONFIGURAÇÃO DE NÚMERO INICIAL ---
+try {
+    // Garante que o PDO esteja em modo de exceção, caso não esteja em config.php
+    $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+    
+    $stmt_config = $pdo->prepare("SELECT valor FROM configuracoes WHERE chave = 'numero_inicial_notificacao'");
+    $stmt_config->execute();
+    $config = $stmt_config->fetch(PDO::FETCH_ASSOC);
+    if ($config && is_numeric($config['valor'])) {
+        $numero_inicial_notificacao = (int)$config['valor'];
+    }
+} catch (PDOException $e) {
+    // Em caso de erro (ex: tabela configuracoes não existe), usa o valor de fallback (1)
+    // error_log("Erro ao carregar numero_inicial_notificacao: " . $e->getMessage()); // Descomente para logar
+}
+
 
 // --- LÓGICA DE CADASTRO ---
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['acao']) && $_POST['acao'] === 'cadastrar') {
     
     // 1. Obtém o próximo ID e o formata
     try {
-        $stmt = $pdo->query("SELECT MAX(id_notificacao) AS max_id FROM notificacoes");
+        // Busca o número de documento máximo existente
+        $stmt = $pdo->query("SELECT MAX(numero_documento) AS max_numero FROM notificacoes");
         $resultado = $stmt->fetch(PDO::FETCH_ASSOC);
-        $proximo_id = ($resultado['max_id'] ? $resultado['max_id'] + 1 : 1);
-        $numero_documento = str_pad($proximo_id, 3, '0', STR_PAD_LEFT);
+        
+        $max_numero_existente = $resultado['max_numero'] ? (int)$resultado['max_numero'] : 0;
+        
+        // O próximo número é o maior valor entre:
+        // 1. O máximo existente + 1
+        // 2. O número inicial configurado
+        $proximo_numero = max($max_numero_existente + 1, $numero_inicial_notificacao);
+        
+        // Formata o número do documento (ex: 001, 010, 100)
+        $numero_documento = str_pad($proximo_numero, 3, '0', STR_PAD_LEFT);
         
         // 2. Coleta e sanitiza os dados
         $id_tipo = $_POST['id_tipo'];
@@ -78,7 +105,12 @@ if (!$notificacoes) {
             Sistema Gerenciador de Notificações
         </h1>
         
-        <p class="mb-8"><a href="tipos_notificacao.php" class="text-blue-600 hover:text-blue-800 font-semibold transition duration-150">→ Gerenciar Modelos de Notificação</a></p>
+        <p class="mb-4">
+            <a href="tipos_notificacao.php" class="text-blue-600 hover:text-blue-800 font-semibold transition duration-150">→ Gerenciar Modelos de Notificação</a>
+        </p>
+        <p class="mb-8">
+            <a href="configuracoes.php" class="text-blue-600 hover:text-blue-800 font-semibold transition duration-150">→ Configurações do Sistema</a>
+        </p>
         
         <?= $mensagem ?>
         <?php if (!empty($_GET['msg'])): ?>
@@ -103,15 +135,22 @@ if (!$notificacoes) {
                         </select>
                     </div>
                     <div>
-                        <label for="logradouro" class="block text-sm font-medium text-gray-700 mb-1">Logradouro:</label>
-                        <input type="text" id="logradouro" name="logradouro" required class="mt-1 block w-full px-4 py-2 border border-gray-300 rounded-xl shadow-sm focus:ring-blue-500 focus:border-blue-500">
+                        <label for="logradouro" class="block text-sm font-medium text-gray-700 mb-1">Endereço:</label>
+                        <input type="text" id="logradouro" name="logradouro" required 
+                               placeholder="Estr. do Mendanha, 140" 
+                               class="mt-1 block w-full px-4 py-2 border border-gray-300 rounded-xl shadow-sm focus:ring-blue-500 focus:border-blue-500">
                     </div>
                 </div>
                 
                 <div class="grid grid-cols-2 gap-6 mt-4">
                     <div>
                         <label for="bairro" class="block text-sm font-medium text-gray-700 mb-1">Bairro:</label>
-                        <input type="text" id="bairro" name="bairro" required class="mt-1 block w-full px-4 py-2 border border-gray-300 rounded-xl shadow-sm focus:ring-blue-500 focus:border-blue-500">
+                        <select id="bairro" name="bairro" required class="mt-1 block w-full px-4 py-2 border border-gray-300 rounded-xl shadow-sm focus:ring-blue-500 focus:border-blue-500 bg-white hover:border-blue-400 transition">
+                            <option value="">-- Selecione o Bairro --</option>
+                            <option value="Campo Grande">Campo Grande</option>
+                            <option value="Santíssimo">Santíssimo</option>
+                            <option value="Senador Vasconcelos">Senador Vasconcelos</option>
+                        </select>
                     </div>
                     <div>
                         <label for="prazo_dias" class="block text-sm font-medium text-gray-700 mb-1">Prazo Máximo (Dias):</label>

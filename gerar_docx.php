@@ -5,7 +5,7 @@
 ob_start(); 
 
 require 'vendor/autoload.php';
-require_once 'config.php';
+require_once __DIR__ . '/../../config.php';
 
 use PhpOffice\PhpWord\TemplateProcessor;
 

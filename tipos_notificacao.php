@@ -1,6 +1,6 @@
 <?php
 // tipos_notificacao.php
-require_once 'config.php';
+require_once __DIR__ . '/../../config.php';
 
 $mensagem = '';
 $upload_dir = 'qrcodes/';
