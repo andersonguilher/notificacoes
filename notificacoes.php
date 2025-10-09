@@ -161,11 +161,11 @@ if ($is_modal_request) {
     
     // Início da saída do modal (retornada via AJAX)
     ?>
-    <div class="p-4 <?= $is_saved_notification ? 'bg-indigo-50/50 border border-indigo-200' : 'bg-green-50/50 border border-green-200' ?> rounded-xl mb-6">
-        <h2 class="text-3xl font-bold mb-4 <?= $is_saved_notification ? 'text-indigo-800' : 'text-green-800' ?>">
+    <div class="p-4 border rounded-xl mb-6" style="background-color: #F0F4F8; border-color: #003366;">
+        <h2 class="text-3xl font-bold mb-4" style="color: #003366;">
             <?= $is_saved_notification ? 'Visualização de Notificação Salva' : 'Confirmação de Nova Notificação' ?>
         </h2>
-        <p class="text-xl font-bold border-b pb-2">Notificação Nº <span class="text-red-600"><?= htmlspecialchars($numero_ano) ?></span></p>
+        <p class="text-xl font-bold border-b pb-2">Notificação Nº <span style="color: #003366;"><?= htmlspecialchars($numero_ano) ?></span></p>
     </div>
     
     <div class="space-y-4 mb-8 text-gray-700">
@@ -200,13 +200,13 @@ if ($is_modal_request) {
             <input type="hidden" name="prazo_dias" value="<?= htmlspecialchars($dados_pre_visualizacao['prazo_dias']) ?>">
             <input type="hidden" name="data_emissao" value="<?= htmlspecialchars($dados_pre_visualizacao['data_emissao']) ?>">
             
-            <button type="submit" class="w-full bg-green-600 text-white py-3 px-4 rounded-xl text-lg font-semibold hover:bg-green-700 transition duration-300 shadow-lg">
+            <button type="submit" class="w-full text-white py-3 px-4 rounded-xl text-lg font-semibold transition duration-300 shadow-lg" style="background-color: #003366;" onmouseover="this.style.backgroundColor='#002244'" onmouseout="this.style.backgroundColor='#003366'">
                 CONFIRMAR E SALVAR
             </button>
         </form>
     <?php else: ?>
         <p class="mb-4 text-center text-sm text-gray-500">Esta notificação já está salva. Você pode visualizá-la e baixar o documento DOCX:</p>
-        <a href="gerar_docx.php?id=<?= $dados_pre_visualizacao['id_notificacao'] ?>" class="block w-full text-center bg-indigo-600 text-white py-3 px-4 rounded-xl text-lg font-semibold hover:bg-indigo-700 transition duration-300 shadow-lg">
+        <a href="gerar_docx.php?id=<?= $dados_pre_visualizacao['id_notificacao'] ?>" class="block w-full text-center text-white py-3 px-4 rounded-xl text-lg font-semibold transition duration-300 shadow-lg" style="background-color: #003366;" onmouseover="this.style.backgroundColor='#002244'" onmouseout="this.style.backgroundColor='#003366'">
             BAIXAR DOCX
         </a>
     <?php endif; ?>
@@ -265,6 +265,11 @@ $valor_data_emissao = date('Y-m-d');
         pre {
             font-family: inherit;
         }
+        /* Definindo classes para facilitar o uso da cor institucional nos inputs */
+        .focus-institutional:focus {
+            border-color: #003366; 
+            --tw-ring-color: #003366;
+        }
     </style>
 </head>
 <body class="bg-gray-100 p-8">
@@ -276,10 +281,10 @@ $valor_data_emissao = date('Y-m-d');
         </h1>
         
         <p class="mb-4">
-            <a href="tipos_notificacao.php" class="text-blue-600 hover:text-blue-800 font-semibold transition duration-150">→ Gerenciar Modelos de Notificação</a>
+            <a href="tipos_notificacao.php" class="font-semibold transition duration-150" style="color: #003366; hover: color: #002244;">→ Gerenciar Modelos de Notificação</a>
         </p>
         <p class="mb-8">
-            <a href="configuracoes.php" class="text-blue-600 hover:text-blue-800 font-semibold transition duration-150">→ Configurações do Sistema</a>
+            <a href="configuracoes.php" class="font-semibold transition duration-150" style="color: #003366; hover: color: #002244;">→ Configurações do Sistema</a>
         </p>
         
         <?= $mensagem ?>
@@ -289,15 +294,15 @@ $valor_data_emissao = date('Y-m-d');
             </div>
         <?php endif; ?>
 
-        <div class="border border-blue-200 p-8 rounded-xl mb-10 bg-blue-50/50 shadow-inner">
-            <h2 class="text-2xl font-bold mb-6 text-blue-800">Gerar Nova Notificação</h2>
+        <div class="border p-8 rounded-xl mb-10 shadow-inner" style="border-color: #003366; background-color: #F0F4F8;">
+            <h2 class="text-2xl font-bold mb-6" style="color: #003366;">Gerar Nova Notificação</h2>
             <form id="newNotificationForm" method="POST">
                 <input type="hidden" name="acao" value="pre_visualizar"> 
                 
                 <div class="grid grid-cols-2 gap-6">
                     <div>
                         <label for="id_tipo" class="block text-sm font-medium text-gray-700 mb-1">Modelo:</label>
-                        <select id="id_tipo" name="id_tipo" required class="mt-1 block w-full px-4 py-2 border border-gray-300 rounded-xl shadow-sm focus:ring-blue-500 focus:border-blue-500 bg-white hover:border-blue-400 transition">
+                        <select id="id_tipo" name="id_tipo" required class="mt-1 block w-full px-4 py-2 border border-gray-300 rounded-xl shadow-sm focus:ring-2 focus-institutional bg-white transition">
                             <option value="">-- Selecione o Modelo --</option>
                             <?php foreach ($modelos as $modelo): ?>
                                 <option value="<?= $modelo['id_tipo'] ?>"><?= htmlspecialchars($modelo['nome_tipo']) ?></option>
@@ -308,14 +313,14 @@ $valor_data_emissao = date('Y-m-d');
                         <label for="logradouro" class="block text-sm font-medium text-gray-700 mb-1">Endereço:</label>
                         <input type="text" id="logradouro" name="logradouro" required 
                                placeholder="Estr. do Mendanha, 140" 
-                               class="mt-1 block w-full px-4 py-2 border border-gray-300 rounded-xl shadow-sm focus:ring-blue-500 focus:border-blue-500">
+                               class="mt-1 block w-full px-4 py-2 border border-gray-300 rounded-xl shadow-sm focus:ring-2 focus-institutional">
                     </div>
                 </div>
                 
                 <div class="grid grid-cols-2 gap-6 mt-4">
                     <div>
                         <label for="bairro" class="block text-sm font-medium text-gray-700 mb-1">Bairro:</label>
-                        <select id="bairro" name="bairro" required class="mt-1 block w-full px-4 py-2 border border-gray-300 rounded-xl shadow-sm focus:ring-blue-500 focus:border-blue-500 bg-white hover:border-blue-400 transition">
+                        <select id="bairro" name="bairro" required class="mt-1 block w-full px-4 py-2 border border-gray-300 rounded-xl shadow-sm focus:ring-2 focus-institutional bg-white transition">
                             <option value="">-- Selecione o Bairro --</option>
                             <option value="Campo Grande">Campo Grande</option>
                             <option value="Santíssimo">Santíssimo</option>
@@ -324,16 +329,16 @@ $valor_data_emissao = date('Y-m-d');
                     </div>
                     <div>
                         <label for="prazo_dias" class="block text-sm font-medium text-gray-700 mb-1">Prazo Máximo (Dias):</label>
-                        <input type="number" id="prazo_dias" name="prazo_dias" value="30" min="1" required class="mt-1 block w-full px-4 py-2 border border-gray-300 rounded-xl shadow-sm focus:ring-blue-500 focus:border-blue-500">
+                        <input type="number" id="prazo_dias" name="prazo_dias" value="30" min="1" required class="mt-1 block w-full px-4 py-2 border border-gray-300 rounded-xl shadow-sm focus:ring-2 focus-institutional">
                     </div>
                 </div>
 
                 <div class="mt-4">
                     <label for="data_emissao" class="block text-sm font-medium text-gray-700 mb-1">Data de Emissão:</label>
-                    <input type="date" id="data_emissao" name="data_emissao" value="<?= date('Y-m-d') ?>" required class="mt-1 block w-1/2 px-4 py-2 border border-gray-300 rounded-xl shadow-sm focus:ring-blue-500 focus:border-blue-500">
+                    <input type="date" id="data_emissao" name="data_emissao" value="<?= date('Y-m-d') ?>" required class="mt-1 block w-1/2 px-4 py-2 border border-gray-300 rounded-xl shadow-sm focus:ring-2 focus-institutional">
                 </div>
 
-                <button type="button" id="previewFormButton" class="mt-8 w-full bg-indigo-600 text-white py-3 px-4 rounded-xl text-lg font-semibold hover:bg-indigo-700 transition duration-300 shadow-lg hover:shadow-xl">
+                <button type="button" id="previewFormButton" class="mt-8 w-full text-white py-3 px-4 rounded-xl text-lg font-semibold transition duration-300 shadow-lg hover:shadow-xl" style="background-color: #003366;" onmouseover="this.style.backgroundColor='#002244'" onmouseout="this.style.backgroundColor='#003366'">
                     Pré-visualizar e Confirmar Geração
                 </button>
             </form>
@@ -358,7 +363,7 @@ $valor_data_emissao = date('Y-m-d');
                         </tr>
                     <?php else: ?>
                         <?php foreach ($notificacoes as $notif): ?>
-                        <tr class="hover:bg-blue-50/50 transition duration-100">
+                        <tr class="transition duration-100 hover:bg-gray-50">
                             <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900"><?= htmlspecialchars($notif['numero_documento']) ?>/<?= date('Y', strtotime($notif['data_emissao'])) ?></td>
                             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700"><?= htmlspecialchars($notif['logradouro']) ?> - <?= htmlspecialchars($notif['bairro']) ?></td>
                             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700"><?= htmlspecialchars($notif['nome_tipo']) ?></td>
@@ -369,14 +374,11 @@ $valor_data_emissao = date('Y-m-d');
                                 </span>
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
-                                <button type="button" onclick="showSavedPreview(<?= $notif['id_notificacao'] ?>)" class="text-blue-600 hover:text-blue-800 font-medium transition duration-150 p-2 rounded-lg hover:bg-blue-50">
+                                <button type="button" onclick="showSavedPreview(<?= $notif['id_notificacao'] ?>)" class="font-medium transition duration-150 p-2 rounded-lg" style="color: #003366; hover: background-color: #F0F4F8;">
                                     Pré-visualizar
                                 </button>
-                                <a href="gerar_docx.php?id=<?= $notif['id_notificacao'] ?>" class="text-red-600 hover:text-red-800 font-medium transition duration-150 p-2 rounded-lg hover:bg-red-50">
-                                    Gerar DOCX
-                                </a>
                             </td>
-                        </tr>
+                            </tr>
                         <?php endforeach; ?>
                     <?php endif; ?>
                 </tbody>

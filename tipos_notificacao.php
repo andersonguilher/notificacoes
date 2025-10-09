@@ -114,13 +114,23 @@ try {
     <meta charset="UTF-8">
     <title>Gerenciamento de Modelos</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* CSS customizado para a cor institucional */
+        .focus-institutional:focus {
+            border-color: #003366; 
+            /* Esta linha ajuda a garantir que o ring-color, se usado, seja o azul marinho */
+            --tw-ring-color: #003366;
+        }
+    </style>
 </head>
 <body class="bg-gray-50 p-8">
 
     <div class="max-w-4xl mx-auto bg-white p-8 rounded-lg shadow-xl">
         <h1 class="text-3xl font-bold mb-4 text-gray-800 border-b pb-2">Gerenciamento de Modelos de Notificação</h1>
         
-        <p class="mb-6"><a href="notificacoes.php" class="text-indigo-600 hover:text-indigo-800 font-medium">← Voltar para Geração de Notificações</a></p>
+        <p class="mb-6">
+            <a href="notificacoes.php" class="font-medium" style="color: #003366; transition: color 0.3s;" onmouseover="this.style.color='#002244'" onmouseout="this.style.color='#003366'">← Voltar para Geração de Notificações</a>
+        </p>
         
         <?php if (!empty($_GET['msg'])): ?>
             <div class='p-4 bg-green-50 border border-green-300 text-green-700 rounded-xl mb-6 font-medium'>
@@ -129,7 +139,7 @@ try {
         <?php endif; ?>
         <?= $mensagem ?>
 
-        <div class="border p-6 rounded-lg mb-8 bg-gray-50">
+        <div class="border p-6 rounded-lg mb-8" style="border-color: #DDE2E7; background-color: #F0F4F8;">
             <h2 class="text-xl font-semibold mb-4 text-gray-700 border-b pb-2">
                 <?= $modelo_edicao ? 'Editar Modelo: ' . htmlspecialchars($modelo_edicao['nome_tipo']) : 'Cadastrar Novo Modelo' ?>
             </h2>
@@ -143,32 +153,32 @@ try {
                     <label for="nome_tipo" class="block text-sm font-medium text-gray-700">Nome do Modelo</label>
                     <input type="text" id="nome_tipo" name="nome_tipo" required
                            value="<?= $modelo_edicao ? htmlspecialchars($modelo_edicao['nome_tipo']) : '' ?>"
-                           class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-green-500 focus:border-green-500">
+                           class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-2 focus-institutional">
                 </div>
 
                 <div class="mb-4">
                     <label for="capitulacao_infracao" class="block text-sm font-medium text-gray-700">CAPTULAÇÃO DA INFRAÇÃO:</label>
                     <textarea id="capitulacao_infracao" name="capitulacao_infracao" rows="3" required
-                              class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-green-500 focus:border-green-500"><?= $modelo_edicao ? htmlspecialchars($modelo_edicao['capitulacao_infracao']) : '' ?></textarea>
+                              class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-2 focus-institutional"><?= $modelo_edicao ? htmlspecialchars($modelo_edicao['capitulacao_infracao']) : '' ?></textarea>
                 </div>
 
                 <div class="mb-4">
                     <label for="obrigacao" class="block text-sm font-medium text-gray-700">OBRIGAÇÃO:</label>
                     <textarea id="obrigacao" name="obrigacao" rows="5" required
-                              class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-green-500 focus:border-green-500"><?= $modelo_edicao ? htmlspecialchars($modelo_edicao['obrigacao']) : '' ?></textarea>
+                              class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-2 focus-institutional"><?= $modelo_edicao ? htmlspecialchars($modelo_edicao['obrigacao']) : '' ?></textarea>
                 </div>
 
                 <div class="mb-6">
                     <label for="capitulacao_multa" class="block text-sm font-medium text-gray-700">CAPITULAÇÃO A MULTA:</label>
                     <textarea id="capitulacao_multa" name="capitulacao_multa" rows="3" required
-                              class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-green-500 focus:border-green-500"><?= $modelo_edicao ? htmlspecialchars($modelo_edicao['capitulacao_multa']) : '' ?></textarea>
+                              class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-2 focus-institutional"><?= $modelo_edicao ? htmlspecialchars($modelo_edicao['capitulacao_multa']) : '' ?></textarea>
                 </div>
                 
                 <div class="mb-6 border p-4 rounded-lg bg-yellow-50">
                     <label for="qr_code_file" class="block text-sm font-bold text-gray-800">Imagem QR Code (PNG/JPG):</label>
                     
                     <p class="text-xs text-gray-600 mb-3">
-                        Gere o QR Code em: <a href="https://www.qrcode-monkey.com/pt/" target="_blank" class="text-blue-600 hover:underline font-medium">www.qrcode-monkey.com/pt</a>
+                        Gere o QR Code em: <a href="https://www.qrcode-monkey.com/pt/" target="_blank" class="hover:underline font-medium" style="color: #003366;">www.qrcode-monkey.com/pt</a>
                     </p>
                     <?php if ($modelo_edicao && $modelo_edicao['qr_code_path']): ?>
                         <div class="mb-3 flex items-center space-x-4">
@@ -184,11 +194,14 @@ try {
                 </div>
 
                 <button type="submit"
-                        class="w-full bg-green-600 text-white py-2 px-4 rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 shadow-md transition duration-150">
+                        class="w-full text-white py-2 px-4 rounded-md shadow-md transition duration-150 focus:outline-none focus:ring-2 focus:ring-offset-2 focus-institutional"
+                        style="background-color: #003366;" 
+                        onmouseover="this.style.backgroundColor='#002244'" 
+                        onmouseout="this.style.backgroundColor='#003366'">
                     <?= $modelo_edicao ? 'Salvar Alterações' : 'Salvar Novo Modelo' ?>
                 </button>
                 <?php if ($modelo_edicao): ?>
-                    <a href="tipos_notificacao.php" class="mt-2 block text-center text-sm text-gray-600 hover:text-gray-800">Cancelar Edição</a>
+                    <a href="tipos_notificacao.php" class="mt-2 block text-center text-sm hover:text-gray-800" style="color: #003366;">Cancelar Edição</a>
                 <?php endif; ?>
             </form>
         </div>
@@ -198,7 +211,7 @@ try {
             <?php if (!empty($modelos)): ?>
                 <?php foreach ($modelos as $modelo): ?>
                     <div class="p-3 border-b last:border-b-0 hover:bg-gray-100 rounded">
-                        <a href="tipos_notificacao.php?id=<?= $modelo['id_tipo'] ?>" class="font-medium text-blue-600 hover:underline">
+                        <a href="tipos_notificacao.php?id=<?= $modelo['id_tipo'] ?>" class="font-medium hover:underline" style="color: #003366;">
                             <?= htmlspecialchars($modelo['nome_tipo']) ?>
                         </a>
                     </div>
