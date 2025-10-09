@@ -276,16 +276,21 @@ $valor_data_emissao = date('Y-m-d');
     
     <div class="max-w-6xl mx-auto bg-white p-10 rounded-2xl shadow-2xl shadow-gray-300/50">
         
-        <h1 class="text-4xl font-extrabold mb-4 text-gray-800 border-b-2 border-gray-100 pb-3">
+        <h1 class="text-3xl font-bold mb-4 text-gray-800 pb-2">
             Sistema Gerenciador de Notificações
         </h1>
         
-        <p class="mb-4">
-            <a href="tipos_notificacao.php" class="font-semibold transition duration-150" style="color: #003366; hover: color: #002244;">→ Gerenciar Modelos de Notificação</a>
-        </p>
-        <p class="mb-8">
-            <a href="configuracoes.php" class="font-semibold transition duration-150" style="color: #003366; hover: color: #002244;">→ Configurações do Sistema</a>
-        </p>
+        <nav class="flex space-x-4 mb-8 p-3 rounded-xl shadow-lg" style="background-color: #003366;">
+            <a href="notificacoes.php" class="py-2 px-4 rounded-lg text-sm font-bold bg-white text-gray-800 transition duration-150 shadow-md">
+                Notificações (Início)
+            </a>
+            <a href="tipos_notificacao.php" class="py-2 px-4 rounded-lg text-sm font-medium text-white hover:bg-white hover:text-gray-800 transition duration-150">
+                Gerenciar Modelos
+            </a>
+            <a href="configuracoes.php" class="py-2 px-4 rounded-lg text-sm font-medium text-white hover:bg-white hover:text-gray-800 transition duration-150">
+                Configurações
+            </a>
+        </nav>
         
         <?= $mensagem ?>
         <?php if (!empty($_GET['msg'])): ?>

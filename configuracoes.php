@@ -68,12 +68,20 @@ try {
 </head>
 <body class="bg-gray-100 p-8">
     
-    <div class="max-w-xl mx-auto bg-white p-8 rounded-lg shadow-xl">
-        <h1 class="text-3xl font-bold mb-4 text-gray-800 border-b pb-2">Configurações do Sistema</h1>
+    <div class="max-w-6xl mx-auto bg-white p-10 rounded-2xl shadow-2xl shadow-gray-300/50">
+        <h1 class="text-3xl font-bold mb-4 text-gray-800 pb-2">Configurações do Sistema</h1>
         
-        <p class="mb-6">
-            <a href="notificacoes.php" class="font-medium" style="color: #003366; transition: color 0.3s;" onmouseover="this.style.color='#002244'" onmouseout="this.style.color='#003366'">← Voltar para Notificações</a>
-        </p>
+        <nav class="flex space-x-4 mb-8 p-3 rounded-xl shadow-lg" style="background-color: #003366;">
+            <a href="notificacoes.php" class="py-2 px-4 rounded-lg text-sm font-medium text-white hover:bg-white hover:text-gray-800 transition duration-150">
+                Notificações (Início)
+            </a>
+            <a href="tipos_notificacao.php" class="py-2 px-4 rounded-lg text-sm font-medium text-white hover:bg-white hover:text-gray-800 transition duration-150">
+                Gerenciar Modelos
+            </a>
+            <a href="configuracoes.php" class="py-2 px-4 rounded-lg text-sm font-bold bg-white text-gray-800 transition duration-150 shadow-md">
+                Configurações
+            </a>
+        </nav>
         
         <?= $mensagem ?>
 

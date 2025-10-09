@@ -125,12 +125,20 @@ try {
 </head>
 <body class="bg-gray-50 p-8">
 
-    <div class="max-w-4xl mx-auto bg-white p-8 rounded-lg shadow-xl">
-        <h1 class="text-3xl font-bold mb-4 text-gray-800 border-b pb-2">Gerenciamento de Modelos de Notificação</h1>
+    <div class="max-w-6xl mx-auto bg-white p-10 rounded-2xl shadow-2xl shadow-gray-300/50">
+        <h1 class="text-3xl font-bold mb-4 text-gray-800 pb-2">Gerenciamento de Modelos de Notificação</h1>
         
-        <p class="mb-6">
-            <a href="notificacoes.php" class="font-medium" style="color: #003366; transition: color 0.3s;" onmouseover="this.style.color='#002244'" onmouseout="this.style.color='#003366'">← Voltar para Geração de Notificações</a>
-        </p>
+        <nav class="flex space-x-4 mb-8 p-3 rounded-xl shadow-lg" style="background-color: #003366;">
+            <a href="notificacoes.php" class="py-2 px-4 rounded-lg text-sm font-medium text-white hover:bg-white hover:text-gray-800 transition duration-150">
+                Notificações (Início)
+            </a>
+            <a href="tipos_notificacao.php" class="py-2 px-4 rounded-lg text-sm font-bold bg-white text-gray-800 transition duration-150 shadow-md">
+                Gerenciar Modelos
+            </a>
+            <a href="configuracoes.php" class="py-2 px-4 rounded-lg text-sm font-medium text-white hover:bg-white hover:text-gray-800 transition duration-150">
+                Configurações
+            </a>
+        </nav>
         
         <?php if (!empty($_GET['msg'])): ?>
             <div class='p-4 bg-green-50 border border-green-300 text-green-700 rounded-xl mb-6 font-medium'>
