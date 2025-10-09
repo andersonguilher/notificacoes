@@ -167,6 +167,9 @@ try {
                 <div class="mb-6 border p-4 rounded-lg bg-yellow-50">
                     <label for="qr_code_file" class="block text-sm font-bold text-gray-800">Imagem QR Code (PNG/JPG):</label>
                     
+                    <p class="text-xs text-gray-600 mb-3">
+                        Gere o QR Code em: <a href="https://www.qrcode-monkey.com/pt/" target="_blank" class="text-blue-600 hover:underline font-medium">www.qrcode-monkey.com/pt</a>
+                    </p>
                     <?php if ($modelo_edicao && $modelo_edicao['qr_code_path']): ?>
                         <div class="mb-3 flex items-center space-x-4">
                             <p class="text-sm text-gray-600">Arquivo Atual:</p>
@@ -179,7 +182,6 @@ try {
                     <input type="file" id="qr_code_file" name="qr_code_file" accept="image/png, image/jpeg" 
                            class="mt-1 block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-yellow-100 file:text-yellow-700 hover:file:bg-yellow-200"/>
                 </div>
-
 
                 <button type="submit"
                         class="w-full bg-green-600 text-white py-2 px-4 rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 shadow-md transition duration-150">
