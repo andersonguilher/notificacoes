@@ -73,23 +73,29 @@ try {
     $templateProcessor->setValue('CAP_MULTA', $notif['capitulacao_multa']);
     $templateProcessor->setValue('DATA_EXTENSO', $data_emissao_formatada);
 
-    // 2. INSERÇÃO DA IMAGEM ESTÁTICA
+    // 2. INSERÇÃO DA IMAGEM ESTÁTICA (Usando a técnica de teste.php: setImageValue)
     $image_inserted = false;
 
     // Apenas tenta inserir se houver um caminho e o arquivo existir no servidor
     if ($notif['qr_code_path'] && file_exists($qr_code_full_path)) {
         try {
-            // Insere a imagem estática usando o caminho ABSOLUTO
-            $templateProcessor->setComplexValue('QR_CODE', new \PhpOffice\PhpWord\Element\Image($qr_code_full_path, [
+            // Define as opções de como a imagem deve ser inserida
+            $opcoes_imagem = array(
+                'path' => $qr_code_full_path, // Caminho ABSOLUTO
                 'width' => 80, 
                 'height' => 80, 
-                'ratio' => true,
-                'alignment' => \PhpOffice\PhpWord\SimpleType\Jc::RIGHT,
-            ]));
+                'ratio' => true, // Mantém a proporção
+                // O alinhamento 'right' é o equivalente em string para o estilo anterior
+                'align' => 'right',
+            );
+            
+            // O método setImageValue faz a substituição do placeholder 'QR_CODE'
+            $templateProcessor->setImageValue('QR_CODE', $opcoes_imagem);
+            
             $image_inserted = true;
         } catch (\Exception $e) {
             // Se falhar na inserção (erro interno do PHPWord), loga e continua
-            error_log("Erro ao inserir imagem no DOCX: " . $e->getMessage());
+            error_log("Erro ao inserir imagem no DOCX (setImageValue): " . $e->getMessage());
         }
     }
     
@@ -123,4 +129,3 @@ header('Expires: 0');
 $templateProcessor->saveAs('php://output');
 
 exit;
-?>
