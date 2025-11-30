@@ -1,6 +1,9 @@
 <?php
 // tipos_notificacao.php
-require_once __DIR__ . '/../../config.php';
+// Substitui a inclusão de config.php pela inclusão de db.php
+require_once __DIR__ . '/../../db.php';
+
+// A variável de conexão para este script é $pdo_notificacoes
 
 $mensagem = '';
 $upload_dir = 'qrcodes/';
@@ -20,7 +23,7 @@ if (!is_dir($upload_dir)) {
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $nome_tipo = htmlspecialchars($_POST['nome_tipo']);
     $capitulacao_infracao = htmlspecialchars($_POST['capitulacao_infracao']);
-    $obrigacao = htmlspecialchars($_POST['obrigacao']);
+    // REMOVIDO: $obrigacao = htmlspecialchars($_POST['obrigacao']); // A obrigação agora é definida na emissão
     $capitulacao_multa = htmlspecialchars($_POST['capitulacao_multa']);
     $modelo_id = isset($_POST['id_tipo']) ? (int)$_POST['id_tipo'] : null;
     $qr_code_file_name = null;
@@ -42,8 +45,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     try {
         if ($modelo_id) {
             // --- OPERAÇÃO DE EDIÇÃO (UPDATE) ---
-            $sql_update = "UPDATE tipos_notificacao SET nome_tipo=?, capitulacao_infracao=?, obrigacao=?, capitulacao_multa=? ";
-            $params = [$nome_tipo, $capitulacao_infracao, $obrigacao, $capitulacao_multa];
+            // Removido 'obrigacao=?'
+            $sql_update = "UPDATE tipos_notificacao SET nome_tipo=?, capitulacao_infracao=?, capitulacao_multa=? ";
+            // Removido $obrigacao
+            $params = [$nome_tipo, $capitulacao_infracao, $capitulacao_multa];
             
             // Se um novo arquivo foi enviado, atualiza o caminho no BD
             if ($qr_code_file_name) {
@@ -62,14 +67,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $sql_update .= " WHERE id_tipo=?";
             $params[] = $modelo_id;
 
-            $stmt = $pdo->prepare($sql_update);
+            // Usando $pdo_notificacoes
+            $stmt = $pdo_notificacoes->prepare($sql_update);
             $stmt->execute($params);
             $mensagem = "<div class='p-3 bg-green-100 border border-green-400 text-green-700 rounded mb-4'>Modelo atualizado com sucesso!</div>";
         } else {
             // --- OPERAÇÃO DE CADASTRO (INSERT) ---
-            $sql_insert = "INSERT INTO tipos_notificacao (nome_tipo, capitulacao_infracao, obrigacao, capitulacao_multa, qr_code_path) VALUES (?, ?, ?, ?, ?)";
-            $stmt = $pdo->prepare($sql_insert);
-            $stmt->execute([$nome_tipo, $capitulacao_infracao, $obrigacao, $capitulacao_multa, $qr_code_file_name]);
+            // Removido 'obrigacao' da lista de colunas e um '?' da lista de valores
+            $sql_insert = "INSERT INTO tipos_notificacao (nome_tipo, capitulacao_infracao, capitulacao_multa, qr_code_path) VALUES (?, ?, ?, ?)";
+            // Removido $obrigacao
+            // Usando $pdo_notificacoes
+            $stmt = $pdo_notificacoes->prepare($sql_insert);
+            $stmt->execute([$nome_tipo, $capitulacao_infracao, $capitulacao_multa, $qr_code_file_name]);
             $mensagem = "<div class='p-3 bg-green-100 border border-green-400 text-green-700 rounded mb-4'>Tipo de Notificação salvo com sucesso!</div>";
         }
         
@@ -87,7 +96,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 if (isset($_GET['id']) && is_numeric($_GET['id'])) {
     $id_para_editar = (int)$_GET['id'];
     try {
-        $stmt = $pdo->prepare("SELECT * FROM tipos_notificacao WHERE id_tipo = ?");
+        // Usando $pdo_notificacoes
+        $stmt = $pdo_notificacoes->prepare("SELECT * FROM tipos_notificacao WHERE id_tipo = ?");
         $stmt->execute([$id_para_editar]);
         $modelo_edicao = $stmt->fetch(PDO::FETCH_ASSOC);
         
@@ -102,7 +112,8 @@ if (isset($_GET['id']) && is_numeric($_GET['id'])) {
 
 // Lógica para listar todos os modelos existentes
 try {
-    $modelos = $pdo->query("SELECT id_tipo, nome_tipo FROM tipos_notificacao ORDER BY nome_tipo")->fetchAll(PDO::FETCH_ASSOC);
+    // Usando $pdo_notificacoes
+    $modelos = $pdo_notificacoes->query("SELECT id_tipo, nome_tipo FROM tipos_notificacao ORDER BY nome_tipo")->fetchAll(PDO::FETCH_ASSOC);
 } catch (PDOException $e) {
     $modelos = [];
     $mensagem .= "<div class='p-3 bg-red-100 border border-red-400 text-red-700 rounded mb-4'>Erro ao carregar modelos: " . $e->getMessage() . "</div>";
@@ -168,12 +179,6 @@ try {
                     <label for="capitulacao_infracao" class="block text-sm font-medium text-gray-700">CAPTULAÇÃO DA INFRAÇÃO:</label>
                     <textarea id="capitulacao_infracao" name="capitulacao_infracao" rows="3" required
                               class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-2 focus-institutional"><?= $modelo_edicao ? htmlspecialchars($modelo_edicao['capitulacao_infracao']) : '' ?></textarea>
-                </div>
-
-                <div class="mb-4">
-                    <label for="obrigacao" class="block text-sm font-medium text-gray-700">OBRIGAÇÃO:</label>
-                    <textarea id="obrigacao" name="obrigacao" rows="5" required
-                              class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-2 focus-institutional"><?= $modelo_edicao ? htmlspecialchars($modelo_edicao['obrigacao']) : '' ?></textarea>
                 </div>
 
                 <div class="mb-6">

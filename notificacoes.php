@@ -1,6 +1,9 @@
 <?php
 // notificacoes.php
-require_once __DIR__ . '/../../config.php';
+// Inclui o db.php centralizado, que agora define $pdo_notificacoes
+require_once __DIR__ . '/../../db.php';
+
+// A variável de conexão para este script é $pdo_notificacoes
 
 $mensagem = '';
 $numero_inicial_notificacao = 1; // Valor de fallback padrão
@@ -8,10 +11,10 @@ $dados_pre_visualizacao = [];
 
 // --- CARREGA CONFIGURAÇÃO DE NÚMERO INICIAL ---
 try {
-    // Garante que o PDO esteja em modo de exceção, caso não esteja em config.php
-    $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+    // Garante que o PDO esteja em modo de exceção (usando $pdo_notificacoes)
+    $pdo_notificacoes->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION); 
     
-    $stmt_config = $pdo->prepare("SELECT valor FROM configuracoes WHERE chave = 'numero_inicial_notificacao'");
+    $stmt_config = $pdo_notificacoes->prepare("SELECT valor FROM configuracoes WHERE chave = 'numero_inicial_notificacao'");
     $stmt_config->execute();
     $config = $stmt_config->fetch(PDO::FETCH_ASSOC);
     if ($config && is_numeric($config['valor'])) {
@@ -29,17 +32,30 @@ $acao_post = $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['acao']) ? $_
 if ($acao_post === 'cadastrar') {
     if (isset($_POST['numero_documento_calculado'])) {
         try {
-            $numero_documento = $_POST['numero_documento_calculado'];
+            
+            // 1a. CALCULAR O PRÓXIMO NÚMERO DE FORMA SEGURA (aqui é o ponto de truth)
+            $stmt_max = $pdo_notificacoes->query("SELECT MAX(CAST(numero_documento AS UNSIGNED)) AS max_numero FROM notificacoes");
+            $resultado_max = $stmt_max->fetch(PDO::FETCH_ASSOC);
+            $max_numero_existente = $resultado_max['max_numero'] ? (int)$resultado_max['max_numero'] : 0;
+            $proximo_numero = max($max_numero_existente + 1, $numero_inicial_notificacao);
+            $numero_documento = str_pad($proximo_numero, 3, '0', STR_PAD_LEFT);
+            
             $id_tipo = $_POST['id_tipo'];
             $logradouro = htmlspecialchars($_POST['logradouro']);
             $bairro = htmlspecialchars($_POST['bairro']);
             $prazo_dias = (int)$_POST['prazo_dias'];
             $data_emissao = $_POST['data_emissao'];
+            $obrigacao = htmlspecialchars($_POST['obrigacao']);
+            $protocolo_1746 = htmlspecialchars($_POST['protocolo_1746'] ?? ''); // Captura o protocolo
+
+            // 1b. SALVAR NO BANCO DE DADOS
+            $stmt = $pdo_notificacoes->prepare("INSERT INTO notificacoes (id_tipo, numero_documento, logradouro, bairro, prazo_dias, data_emissao, obrigacao, protocolo_1746) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
+            $stmt->execute([$id_tipo, $numero_documento, $logradouro, $bairro, $prazo_dias, $data_emissao, $obrigacao, $protocolo_1746]);
             
-            $stmt = $pdo->prepare("INSERT INTO notificacoes (id_tipo, numero_documento, logradouro, bairro, prazo_dias, data_emissao) VALUES (?, ?, ?, ?, ?, ?)");
-            $stmt->execute([$id_tipo, $numero_documento, $logradouro, $bairro, $prazo_dias, $data_emissao]);
-            
-            header("Location: notificacoes.php?msg=" . urlencode("Notificação No $numero_documento gerada e salva com sucesso!"));
+            $id_notificacao_salva = $pdo_notificacoes->lastInsertId();
+
+            // 1c. REDIRECIONAR DE VOLTA PARA A PÁGINA PRINCIPAL PARA ATUALIZAR A LISTA E DISPARAR O DOWNLOAD
+            header("Location: notificacoes.php?msg=" . urlencode("Notificação Nº $numero_documento gerada e salva com sucesso!") . "&download_id=" . $id_notificacao_salva);
             exit;
             
         } catch (PDOException $e) {
@@ -62,13 +78,12 @@ if ($is_modal_request) {
         // PATH: Saved Notification Preview
         $id_notificacao = (int)$_POST['id_notificacao'];
         try {
-            $stmt_saved = $pdo->prepare("
+            $stmt_saved = $pdo_notificacoes->prepare("
                 SELECT 
                     n.*, 
                     t.nome_tipo, 
                     t.capitulacao_infracao, 
-                    t.obrigacao, 
-                    t.capitulacao_multa,
+                    t.capitulacao_multa, 
                     t.qr_code_path
                 FROM notificacoes n
                 JOIN tipos_notificacao t ON n.id_tipo = t.id_tipo
@@ -87,7 +102,8 @@ if ($is_modal_request) {
                     'prazo_dias'            => $notif_saved['prazo_dias'],
                     'data_emissao'          => $notif_saved['data_emissao'],
                     'capitulacao_infracao'  => $notif_saved['capitulacao_infracao'],
-                    'obrigacao'             => $notif_saved['obrigacao'],
+                    'obrigacao'             => $notif_saved['obrigacao'], 
+                    'protocolo_1746'        => $notif_saved['protocolo_1746'], // Campo protocolo
                     'capitulacao_multa'     => $notif_saved['capitulacao_multa'],
                     'qr_code_path'          => $notif_saved['qr_code_path'],
                     'id_notificacao'        => $id_notificacao,
@@ -106,11 +122,15 @@ if ($is_modal_request) {
         $bairro_prev = htmlspecialchars($_POST['bairro'] ?? '');
         $prazo_dias_prev = (int)($_POST['prazo_dias'] ?? 30);
         $data_emissao_prev = $_POST['data_emissao'] ?? date('Y-m-d');
+        $obrigacao_prev = htmlspecialchars($_POST['obrigacao'] ?? '');
+        $protocolo_1746_prev = htmlspecialchars($_POST['protocolo_1746'] ?? ''); // Captura protocolo
+
         $proximo_numero_documento = str_pad($numero_inicial_notificacao, 3, '0', STR_PAD_LEFT);
-        $qr_code_path = ''; // Inicializa a variável
+        $qr_code_path = '';
 
         try {
-            $stmt = $pdo->query("SELECT MAX(numero_documento) AS max_numero FROM notificacoes");
+            // Este cálculo é apenas para exibição no modal. O cálculo final será feito na ação 'cadastrar'.
+            $stmt = $pdo_notificacoes->query("SELECT MAX(CAST(numero_documento AS UNSIGNED)) AS max_numero FROM notificacoes");
             $resultado = $stmt->fetch(PDO::FETCH_ASSOC);
             $max_numero_existente = $resultado['max_numero'] ? (int)$resultado['max_numero'] : 0;
             $proximo_numero = max($max_numero_existente + 1, $numero_inicial_notificacao);
@@ -119,7 +139,8 @@ if ($is_modal_request) {
             $modal_error = "Aviso: Não foi possível calcular o número do documento. Usando valor inicial: $proximo_numero_documento";
         }
 
-        $modelo_selecionado = $pdo->prepare("SELECT * FROM tipos_notificacao WHERE id_tipo = ?");
+        // Seleciona campos do modelo
+        $modelo_selecionado = $pdo_notificacoes->prepare("SELECT nome_tipo, capitulacao_infracao, capitulacao_multa, qr_code_path FROM tipos_notificacao WHERE id_tipo = ?");
         $modelo_selecionado->execute([$id_tipo_prev]);
         $modelo_dados = $modelo_selecionado->fetch(PDO::FETCH_ASSOC);
 
@@ -133,7 +154,8 @@ if ($is_modal_request) {
                 'prazo_dias'            => $prazo_dias_prev,
                 'data_emissao'          => $data_emissao_prev,
                 'capitulacao_infracao'  => $modelo_dados['capitulacao_infracao'],
-                'obrigacao'             => $modelo_dados['obrigacao'],
+                'obrigacao'             => $obrigacao_prev, 
+                'protocolo_1746'        => $protocolo_1746_prev, 
                 'capitulacao_multa'     => $modelo_dados['capitulacao_multa'],
                 'qr_code_path'          => $modelo_dados['qr_code_path'],
             ];
@@ -172,9 +194,10 @@ if ($is_modal_request) {
         <p><strong>Modelo:</strong> <?= htmlspecialchars($dados_pre_visualizacao['nome_tipo']) ?></p>
         <p><strong>Endereço:</strong> <?= htmlspecialchars($endereco_completo) ?></p>
         <p><strong>Prazo:</strong> <?= htmlspecialchars($dados_pre_visualizacao['prazo_dias']) ?> dias</p>
+        <p><strong>Protocolo 1746/Ouvidoria:</strong> <?= empty($dados_pre_visualizacao['protocolo_1746']) ? 'N/A' : htmlspecialchars($dados_pre_visualizacao['protocolo_1746']) ?></p>
         <p><strong>Data de Emissão:</strong> <?= date('d/m/Y', strtotime($dados_pre_visualizacao['data_emissao'])) ?></p>
 
-        <h3 class="text-lg font-semibold pt-4 border-t border-gray-200">Conteúdo do Modelo:</h3>
+        <h3 class="text-lg font-semibold pt-4 border-t border-gray-200">Conteúdo do Documento:</h3>
         <p><strong>Capitulação Infração:</strong> <pre class="p-2 bg-gray-50 rounded-lg text-sm whitespace-pre-wrap"><?= htmlspecialchars($dados_pre_visualizacao['capitulacao_infracao']) ?></pre></p>
         <p><strong>Obrigação:</strong> <pre class="p-2 bg-gray-50 rounded-lg text-sm whitespace-pre-wrap"><?= htmlspecialchars($dados_pre_visualizacao['obrigacao']) ?></pre></p>
         <p><strong>Capitulação Multa:</strong> <pre class="p-2 bg-gray-50 rounded-lg text-sm whitespace-pre-wrap"><?= htmlspecialchars($dados_pre_visualizacao['capitulacao_multa']) ?></pre></p>
@@ -199,6 +222,8 @@ if ($is_modal_request) {
             <input type="hidden" name="bairro" value="<?= htmlspecialchars($dados_pre_visualizacao['bairro']) ?>">
             <input type="hidden" name="prazo_dias" value="<?= htmlspecialchars($dados_pre_visualizacao['prazo_dias']) ?>">
             <input type="hidden" name="data_emissao" value="<?= htmlspecialchars($dados_pre_visualizacao['data_emissao']) ?>">
+            <input type="hidden" name="obrigacao" value="<?= htmlspecialchars($dados_pre_visualizacao['obrigacao']) ?>">
+            <input type="hidden" name="protocolo_1746" value="<?= htmlspecialchars($dados_pre_visualizacao['protocolo_1746']) ?>">
             
             <button type="submit" class="w-full text-white py-3 px-4 rounded-xl text-lg font-semibold transition duration-300 shadow-lg" style="background-color: #003366;" onmouseover="this.style.backgroundColor='#002244'" onmouseout="this.style.backgroundColor='#003366'">
                 CONFIRMAR E SALVAR
@@ -218,14 +243,15 @@ if ($is_modal_request) {
 
 // --- LÓGICA DE CONSULTA DA LISTA (Normal para o corpo da página) ---
 try {
-    $modelos = $pdo->query("SELECT id_tipo, nome_tipo FROM tipos_notificacao ORDER BY nome_tipo")->fetchAll(PDO::FETCH_ASSOC);
+    $modelos = $pdo_notificacoes->query("SELECT id_tipo, nome_tipo FROM tipos_notificacao ORDER BY nome_tipo")->fetchAll(PDO::FETCH_ASSOC);
 } catch (PDOException $e) {
     $modelos = [];
-    $mensagem = "<div class='p-3 bg-red-100 border border-red-400 text-red-700 rounded-lg'>Erro ao carregar modelos: " . $e->getMessage() . "</div>";
+    $mensagem .= "<div class='p-3 bg-red-100 border border-red-400 text-red-700 rounded-lg'>Erro ao carregar modelos: " . $e->getMessage() . "</div>";
 }
 
 try {
-    $stmt_notif = $pdo->query("
+    // n.* inclui as colunas necessarias: numero_documento, logradouro, bairro, data_emissao, protocolo_1746, etc.
+    $stmt_notif = $pdo_notificacoes->query("
         SELECT n.*, t.nome_tipo 
         FROM notificacoes n
         JOIN tipos_notificacao t ON n.id_tipo = t.id_tipo
@@ -240,12 +266,17 @@ if (!$notificacoes) {
     $notificacoes = []; 
 }
 
+// NOVO: Verifica se deve iniciar o download via JS
+$download_id = isset($_GET['download_id']) && is_numeric($_GET['download_id']) ? (int)$_GET['download_id'] : null;
+
 // Valores padrão para o formulário (sem persistência)
 $valor_id_tipo = '';
 $valor_logradouro = '';
 $valor_bairro = '';
 $valor_prazo_dias = '30';
 $valor_data_emissao = date('Y-m-d');
+$valor_obrigacao = '';
+$valor_protocolo_1746 = '';
 
 ?>
 
@@ -258,6 +289,10 @@ $valor_data_emissao = date('Y-m-d');
     <style>
         body {
             font-family: ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+        }
+        /* Garantir que a tabela se ajuste e permita o scroll horizontal se necessário */
+        .overflow-x-auto {
+            overflow-x: auto;
         }
         .overflow-hidden {
             overflow: hidden; /* Para travar o scroll do body quando o modal estiver aberto */
@@ -293,9 +328,9 @@ $valor_data_emissao = date('Y-m-d');
         </nav>
         
         <?= $mensagem ?>
-        <?php if (!empty($_GET['msg'])): ?>
+        <?php if (!empty($_GET['msg']) && !isset($_GET['download_id'])): ?>
             <div class='p-4 bg-green-50 border border-green-300 text-green-700 rounded-xl mb-6 font-medium'>
-                <?= htmlspecialchars($_GET['msg']) ?>
+                <?= htmlspecialchars(urldecode($_GET['msg'])) ?>
             </div>
         <?php endif; ?>
 
@@ -339,6 +374,20 @@ $valor_data_emissao = date('Y-m-d');
                 </div>
 
                 <div class="mt-4">
+                    <label for="obrigacao" class="block text-sm font-medium text-gray-700 mb-1">OBRIGAÇÃO (a ser cumprida):</label>
+                    <textarea id="obrigacao" name="obrigacao" rows="3" required
+                              placeholder="Ex: Comparecer na sede da Secretaria de Urbanismo para apresentar a Licença de Obra."
+                              class="mt-1 block w-full px-4 py-2 border border-gray-300 rounded-xl shadow-sm focus:ring-2 focus-institutional"><?= $valor_obrigacao ?></textarea>
+                </div>
+                
+                <div class="mt-4">
+                    <label for="protocolo_1746" class="block text-sm font-medium text-gray-700 mb-1">Protocolo 1746 / Ouvidoria (Opcional):</label>
+                    <input type="text" id="protocolo_1746" name="protocolo_1746" 
+                           value="<?= $valor_protocolo_1746 ?>"
+                           placeholder="Ex: RIO01234567-8"
+                           class="mt-1 block w-full px-4 py-2 border border-gray-300 rounded-xl shadow-sm focus:ring-2 focus-institutional">
+                </div>
+                <div class="mt-4">
                     <label for="data_emissao" class="block text-sm font-medium text-gray-700 mb-1">Data de Emissão:</label>
                     <input type="date" id="data_emissao" name="data_emissao" value="<?= date('Y-m-d') ?>" required class="mt-1 block w-1/2 px-4 py-2 border border-gray-300 rounded-xl shadow-sm focus:ring-2 focus-institutional">
                 </div>
@@ -355,29 +404,22 @@ $valor_data_emissao = date('Y-m-d');
                     <tr>
                         <th class="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Nº/Ano</th>
                         <th class="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Localização</th>
-                        <th class="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Modelo</th>
+                        <th class="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Protocolo</th>
                         <th class="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Emissão</th>
-                        <th class="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Status</th>
                         <th class="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Ações</th>
                     </tr>
                 </thead>
                 <tbody class="bg-white divide-y divide-gray-100">
                     <?php if (empty($notificacoes)): ?>
                         <tr>
-                            <td colspan="6" class="px-6 py-4 text-center text-gray-500 italic">Nenhuma notificação emitida ainda.</td>
-                        </tr>
+                            <td colspan="5" class="px-6 py-4 text-center text-gray-500 italic">Nenhuma notificação emitida ainda.</td> </tr>
                     <?php else: ?>
                         <?php foreach ($notificacoes as $notif): ?>
                         <tr class="transition duration-100 hover:bg-gray-50">
                             <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900"><?= htmlspecialchars($notif['numero_documento']) ?>/<?= date('Y', strtotime($notif['data_emissao'])) ?></td>
                             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700"><?= htmlspecialchars($notif['logradouro']) ?> - <?= htmlspecialchars($notif['bairro']) ?></td>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700"><?= htmlspecialchars($notif['nome_tipo']) ?></td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700"><?= htmlspecialchars($notif['protocolo_1746'] ?? 'N/A') ?></td>
                             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700"><?= date('d/m/Y', strtotime($notif['data_emissao'])) ?></td>
-                            <td class="px-6 py-4 whitespace-nowrap">
-                                <span class="px-3 py-1 inline-flex text-xs leading-5 font-bold rounded-full bg-yellow-100 text-yellow-700">
-                                    <?= htmlspecialchars($notif['status'] ?? 'Emitida') ?>
-                                </span>
-                            </td>
                             <td class="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
                                 <button type="button" onclick="showSavedPreview(<?= $notif['id_notificacao'] ?>)" class="font-medium transition duration-150 p-2 rounded-lg" style="color: #003366; hover: background-color: #F0F4F8;">
                                     Pré-visualizar
@@ -501,6 +543,27 @@ $valor_data_emissao = date('Y-m-d');
                 });
             });
         });
+        
+        // SCRIPT PARA INICIAR DOWNLOAD APÓS O REDIRECIONAMENTO (Atualiza a lista e baixa)
+        <?php if ($download_id): ?>
+            document.addEventListener('DOMContentLoaded', function() {
+                const downloadId = '<?= $download_id ?>';
+                
+                // 1. Inicia o download forçando o navegador a carregar o script de geração
+                // Esta ação não impede a atualização da lista que já ocorreu no PHP
+                window.location.href = 'gerar_docx.php?id=' + downloadId;
+                
+                // 2. Remove os parâmetros de download e msg da URL para limpar a URL após o download
+                if (window.history.replaceState) {
+                    const url = new URL(window.location.href);
+                    url.searchParams.delete('download_id');
+                    // Mantém apenas a mensagem de sucesso
+                    const cleanedUrl = url.href.replace(/&?download_id=\d+/g, '');
+                    window.history.replaceState({path: cleanedUrl}, '', cleanedUrl);
+                }
+            });
+        <?php endif; ?>
+        
     </script>
 </body>
 </html>

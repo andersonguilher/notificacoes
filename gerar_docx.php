@@ -5,7 +5,8 @@
 ob_start(); 
 
 require 'vendor/autoload.php';
-require_once __DIR__ . '/../../config.php';
+// Inclui o db.php centralizado, que agora define $pdo_notificacoes
+require_once __DIR__ . '/../../db.php';
 
 use PhpOffice\PhpWord\TemplateProcessor;
 
@@ -21,19 +22,19 @@ $id_notificacao = $_GET['id'];
 
 // --- CONSULTA AO BANCO DE DADOS ---
 try {
-    $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-    $stmt = $pdo->prepare("
+    // A variável de conexão para este script é $pdo_notificacoes
+    $pdo_notificacoes->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+    $stmt = $pdo_notificacoes->prepare("
         SELECT 
             n.*, 
             t.capitulacao_infracao, 
-            t.obrigacao, 
             t.capitulacao_multa,
             t.qr_code_path  
         FROM notificacoes n
         JOIN tipos_notificacao t ON n.id_tipo = t.id_tipo
         WHERE n.id_notificacao = ?
-    ");
-    $stmt->execute([$id_notificacao]);
+    "); 
+    $stmt->execute([$id_notificacao]); // Usando a variável de conexão correta
     $notif = $stmt->fetch(PDO::FETCH_ASSOC);
 
     if (!$notif) {
@@ -45,6 +46,7 @@ try {
     $qr_code_full_path = __DIR__ . '/qrcodes/' . $notif['qr_code_path'];
     
 } catch (PDOException $e) {
+    // A página agora deve abrir. Se houver erro, será este.
     die("Erro ao consultar dados: " . $e->getMessage());
 }
 
@@ -82,8 +84,8 @@ try {
             // Define as opções de como a imagem deve ser inserida
             $opcoes_imagem = array(
                 'path' => $qr_code_full_path, // Caminho ABSOLUTO
-                'width' => 80, 
-                'height' => 80, 
+                'width' => 120, // TAMANHO AJUSTADO (entre 80 e 150)
+                'height' => 120, // TAMANHO AJUSTADO (entre 80 e 150)
                 'ratio' => true, // Mantém a proporção
                 // O alinhamento 'right' é o equivalente em string para o estilo anterior
                 'align' => 'right',
@@ -129,3 +131,4 @@ header('Expires: 0');
 $templateProcessor->saveAs('php://output');
 
 exit;
+?>
