@@ -50,34 +50,52 @@ Siga os passos abaixo para configurar o projeto localmente.
 
 3.  **Configuração do Banco de Dados:**
 
-    * Crie o banco de dados e as tabelas utilizando o script SQL fornecido.
+    * Crie o banco de dados e as tabelas utilizando o script SQL abaixo.
 
-    **Estrutura das Tabelas (DDL Completo):**
+    **Script SQL de Criação (DDL e Dados Iniciais):**
 
     ```sql
+    -- Criação do Banco de Dados
+    CREATE DATABASE IF NOT EXISTS `notificacoes` DEFAULT CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci;
+    USE `notificacoes`;
+
     -- Tabela para configurações chave/valor (usada para o número inicial)
-    CREATE TABLE `configuracoes` (
+    CREATE TABLE IF NOT EXISTS `configuracoes` (
       `chave` varchar(50) NOT NULL,
       `valor` varchar(255) NOT NULL,
       PRIMARY KEY (`chave`)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3;
 
+    -- Dados iniciais de configuração
+    INSERT INTO `configuracoes` (`chave`, `valor`) VALUES
+    ('numero_inicial_notificacao', '110');
+
     -- Tabela para os modelos de notificação
-    CREATE TABLE `tipos_notificacao` (
-      `id_tipo` int NOT NULL PRIMARY KEY AUTO_INCREMENT,
+    CREATE TABLE IF NOT EXISTS `tipos_notificacao` (
+      `id_tipo` int NOT NULL AUTO_INCREMENT,
       `nome_tipo` varchar(255) NOT NULL,
       `capitulacao_infracao` text NOT NULL,
-      `obrigacao` text NOT NULL,
       `capitulacao_multa` text NOT NULL,
       `ativo` tinyint(1) DEFAULT '1',
       `data_criacao` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
-      `qr_code_path` varchar(255) DEFAULT NULL
+      `qr_code_path` varchar(255) DEFAULT NULL,
+      PRIMARY KEY (`id_tipo`)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3;
 
+    -- Dados iniciais dos tipos de notificação
+    INSERT INTO `tipos_notificacao` (`id_tipo`, `nome_tipo`, `capitulacao_infracao`, `capitulacao_multa`, `ativo`, `data_criacao`, `qr_code_path`) VALUES
+    (1, 'RECOMPOSIÇÃO DE PASSEIO', 'Art. 447 da Lei Complementar 270/2024', '§ 17 do Art. 136 do RLF do Dec. &quot;E&quot; 3.800/70', 1, '2025-10-08 14:55:26', 'qr_1760368363_calçada.png'),
+    (2, 'DANOS AO MEIO-FIO DE VIA PÚBLICA', 'Art. 285 da Lei Complementar 270/2024', '§16 do Art. 136 do RLF do Dec. &amp;quot;E&amp;quot; 3.800/70', 1, '2025-10-13 15:04:42', 'qr_1760367882_meio-fio.png'),
+    (3, 'COLOCAÇÃO DE RAMPA OU CUNHA(FIXAS OU MÓVEIS) SOBRE PASSEIO EM VIAS PÚBLICAS', 'Art. 448 da Lei Complementar 270/2024', '§16º do Art. 136 do RLF do Dec. &quot;E&quot; 3.800/70', 1, '2025-10-13 15:10:43', 'qr_1760368243_rampa.png'),
+    (4, 'FECHAMENTO DE LOGRADOURO', 'Art. 285 da Lei Complementar 270/2024', '§16 do Art. 136 do RLF do Dec. &quot;E&quot; 3.800/70\r\n', 1, '2025-10-14 15:18:09', 'qr_1760455089_fechamento_logradouro.png'),
+    (5, 'DISPOSITIVOS IRREGULARES NA CALÇADA', 'Art. 285 da Lei Complementar 270/2024', '§16 do Art. 136 do RLF do Dec. &quot;E&quot; 3.800/70', 1, '2025-10-14 16:30:28', 'qr_1760459428_obstáculo.png'),
+    (6, 'OBRA SEM LICENÇA', 'Art. 8º do Regulamento p/ Obras, Reparos e Serviços em Vias Públicas aprovado pelo Dec. 2613/80, de 15/03/80', '§ 5º do Art. 136 do RLF do Dec. &amp;quot;E&amp;quot; 3.800/70, por força do disposto no Art. 22 § 1º do Dec. 2613/80', 1, '2025-10-29 18:43:14', 'qr_1761763394_obrasemlicença.jpg'),
+    (7, 'USURPAR VIA PÚBLICA', 'Art. 285 da Lei Complementar 270/2024\r\n', '§16 do Art. 136 do RLF do Dec. 3.800/70', 1, '2025-11-27 15:22:08', NULL);
+
     -- Tabela para as notificações emitidas
-    CREATE TABLE `notificacoes` (
-      `id_notificacao` int NOT NULL PRIMARY KEY AUTO_INCREMENT,
-      `numero_documento` varchar(10) NOT NULL UNIQUE,
+    CREATE TABLE IF NOT EXISTS `notificacoes` (
+      `id_notificacao` int NOT NULL AUTO_INCREMENT,
+      `numero_documento` varchar(10) NOT NULL,
       `id_tipo` int NOT NULL,
       `nome_proprietario` varchar(255) NOT NULL,
       `logradouro` varchar(255) NOT NULL,
@@ -86,7 +104,12 @@ Siga os passos abaixo para configurar o projeto localmente.
       `data_emissao` date NOT NULL,
       `status` enum('Emitida','Entregue','Arquivada','Cancelada') DEFAULT 'Emitida',
       `data_registro` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
-      FOREIGN KEY (`id_tipo`) REFERENCES `tipos_notificacao` (`id_tipo`)
+      `obrigacao` text,
+      `protocolo_1746` varchar(255) DEFAULT NULL,
+      PRIMARY KEY (`id_notificacao`),
+      UNIQUE KEY `numero_documento` (`numero_documento`),
+      KEY `id_tipo` (`id_tipo`),
+      CONSTRAINT `notificacoes_ibfk_1` FOREIGN KEY (`id_tipo`) REFERENCES `tipos_notificacao` (`id_tipo`)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3;
     ```
 
