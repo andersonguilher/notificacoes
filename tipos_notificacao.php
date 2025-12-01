@@ -1,238 +1,340 @@
 <?php
 // tipos_notificacao.php
-// Substitui a inclusão de config.php pela inclusão de db.php
-require_once __DIR__ . '/../../db.php';
+ini_set('display_errors', 1);
+ini_set('display_startup_errors', 1);
+error_reporting(E_ALL);
 
-// A variável de conexão para este script é $pdo_notificacoes
+require_once __DIR__ . '/vendor/autoload.php';
+require_once __DIR__ . '/../../db.php'; 
+
+use BaconQrCode\Renderer\ImageRenderer;
+use BaconQrCode\Renderer\Image\ImagickImageBackEnd;
+use BaconQrCode\Renderer\Image\SvgImageBackEnd;
+use BaconQrCode\Renderer\RendererStyle\RendererStyle;
+use BaconQrCode\Writer;
 
 $mensagem = '';
-$upload_dir = 'qrcodes/';
 
-// Dados do modelo sendo editado
-$modelo_edicao = null; 
+// Variáveis para preencher o formulário
+$id_editar = '';
+$nome_tipo_val = '';
+$cap_infracao_val = '';
+$cap_multa_val = '';
+// $obrigacao_val removida pois não existe mais no modelo
+$prazo_val = '30';
+$acao_formulario = 'cadastrar';
+$texto_botao = 'Salvar Modelo e Gerar QR Code';
+$classe_botao = 'btn-success';
 
-// Garante que a pasta de upload exista
-if (!is_dir($upload_dir)) {
-    if (!mkdir($upload_dir, 0777, true)) {
-        $mensagem .= "<div class='p-3 bg-red-100 border border-red-400 text-red-700 rounded mb-4'>ERRO: Não foi possível criar a pasta 'qrcodes/'. Crie-a manualmente e defina permissão 777.</div>";
+// --- 1. LÓGICA DE EXCLUSÃO ---
+if (isset($_GET['acao']) && $_GET['acao'] === 'excluir' && isset($_GET['id'])) {
+    try {
+        $id_excluir = $_GET['id'];
+        
+        $stmt = $pdo_notificacoes->prepare("SELECT qr_code_path, caminho_pdf FROM tipos_notificacao WHERE id_tipo = ?");
+        $stmt->execute([$id_excluir]);
+        $dados_arq = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        if ($dados_arq) {
+            $stmtDel = $pdo_notificacoes->prepare("DELETE FROM tipos_notificacao WHERE id_tipo = ?");
+            $stmtDel->execute([$id_excluir]);
+
+            if (!empty($dados_arq['qr_code_path'])) {
+                $file_qr = __DIR__ . '/qrcodes/' . $dados_arq['qr_code_path'];
+                if (file_exists($file_qr)) unlink($file_qr);
+            }
+            if (!empty($dados_arq['caminho_pdf'])) {
+                $file_pdf = __DIR__ . '/' . $dados_arq['caminho_pdf'];
+                if (file_exists($file_pdf)) unlink($file_pdf);
+            }
+
+            $mensagem = "<div class='alert alert-success'>Modelo excluído com sucesso!</div>";
+        }
+    } catch (PDOException $e) {
+        if ($e->getCode() == '23000') {
+            $mensagem = "<div class='alert alert-warning'><strong>Não é possível excluir:</strong> Este modelo já está a ser utilizado em notificações emitidas.</div>";
+        } else {
+            $mensagem = "<div class='alert alert-danger'>Erro ao excluir: " . $e->getMessage() . "</div>";
+        }
     }
 }
 
-
-// --- LÓGICA DE PROCESSAMENTO DE FORMULÁRIO (INSERT / UPDATE) ---
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $nome_tipo = htmlspecialchars($_POST['nome_tipo']);
-    $capitulacao_infracao = htmlspecialchars($_POST['capitulacao_infracao']);
-    // REMOVIDO: $obrigacao = htmlspecialchars($_POST['obrigacao']); // A obrigação agora é definida na emissão
-    $capitulacao_multa = htmlspecialchars($_POST['capitulacao_multa']);
-    $modelo_id = isset($_POST['id_tipo']) ? (int)$_POST['id_tipo'] : null;
-    $qr_code_file_name = null;
-
-    // 1. LÓGICA DE UPLOAD
-    if (isset($_FILES['qr_code_file']) && $_FILES['qr_code_file']['error'] === UPLOAD_ERR_OK) {
-        $file_tmp_name = $_FILES['qr_code_file']['tmp_name'];
-        $original_file_name = basename($_FILES['qr_code_file']['name']);
-        
-        $qr_code_file_name = 'qr_' . time() . '_' . $original_file_name;
-        $destination = $upload_dir . $qr_code_file_name;
-
-        if (!move_uploaded_file($file_tmp_name, $destination)) {
-            $mensagem = "<div class='p-3 bg-red-100 border border-red-400 text-red-700 rounded mb-4'>ERRO: Falha ao mover o arquivo de QR Code. Verifique as permissões (777) da pasta 'qrcodes/'.</div>";
-            $qr_code_file_name = null;
-        }
-    }
-
+// --- 2. CARREGAR DADOS PARA EDIÇÃO ---
+if (isset($_GET['acao']) && $_GET['acao'] === 'editar' && isset($_GET['id'])) {
     try {
-        if ($modelo_id) {
-            // --- OPERAÇÃO DE EDIÇÃO (UPDATE) ---
-            // Removido 'obrigacao=?'
-            $sql_update = "UPDATE tipos_notificacao SET nome_tipo=?, capitulacao_infracao=?, capitulacao_multa=? ";
-            // Removido $obrigacao
-            $params = [$nome_tipo, $capitulacao_infracao, $capitulacao_multa];
+        $stmt = $pdo_notificacoes->prepare("SELECT * FROM tipos_notificacao WHERE id_tipo = ?");
+        $stmt->execute([$_GET['id']]);
+        $dados_editar = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        if ($dados_editar) {
+            $id_editar = $dados_editar['id_tipo'];
+            $nome_tipo_val = $dados_editar['nome_tipo'];
+            $cap_infracao_val = $dados_editar['capitulacao_infracao'];
+            $cap_multa_val = $dados_editar['capitulacao_multa'];
+            $prazo_val = $dados_editar['prazo_dias'] ?? '30';
             
-            // Se um novo arquivo foi enviado, atualiza o caminho no BD
-            if ($qr_code_file_name) {
-                // Remove o arquivo antigo, se existir
-                if (isset($_POST['qr_code_path_antigo']) && file_exists($upload_dir . $_POST['qr_code_path_antigo'])) {
-                    unlink($upload_dir . $_POST['qr_code_path_antigo']);
-                }
-                $sql_update .= ", qr_code_path=? ";
-                $params[] = $qr_code_file_name;
+            $acao_formulario = 'atualizar';
+            $texto_botao = 'Atualizar Modelo';
+            $classe_botao = 'btn-primary';
+        }
+    } catch (PDOException $e) {
+        $mensagem = "<div class='alert alert-danger'>Erro ao buscar dados: " . $e->getMessage() . "</div>";
+    }
+}
+
+// --- 3. PROCESSAMENTO (CADASTRAR / ATUALIZAR) ---
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['acao'])) {
+    try {
+        $pdo_notificacoes->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+
+        $nome_tipo = $_POST['nome_tipo'];
+        $cap_infracao = $_POST['capitulacao_infracao'];
+        $cap_multa = $_POST['capitulacao_multa'];
+        // Obrigação removida daqui
+        $prazo = $_POST['prazo_dias'];
+        
+        $nome_qrcode_db = null;
+        $caminho_pdf_db = null;
+        $token_pdf = null;
+        $atualizar_arquivos = false;
+
+        // UPLOAD PDF
+        if (isset($_FILES['pdf_anexo']) && $_FILES['pdf_anexo']['error'] === UPLOAD_ERR_OK) {
+            
+            $dir_pdfs = __DIR__ . '/uploads_pdfs/';
+            $dir_qrcodes = __DIR__ . '/qrcodes/';
+            if (!is_dir($dir_pdfs)) mkdir($dir_pdfs, 0755, true);
+            if (!is_dir($dir_qrcodes)) mkdir($dir_qrcodes, 0755, true);
+
+            $ext = strtolower(pathinfo($_FILES['pdf_anexo']['name'], PATHINFO_EXTENSION));
+            if ($ext !== 'pdf') throw new Exception("O ficheiro deve ser um PDF.");
+
+            $token_pdf = bin2hex(random_bytes(16));
+            $nome_pdf = 'doc_' . time() . '_' . $token_pdf . '.pdf';
+            if (!move_uploaded_file($_FILES['pdf_anexo']['tmp_name'], $dir_pdfs . $nome_pdf)) {
+                throw new Exception("Falha ao salvar PDF.");
+            }
+            $caminho_pdf_db = 'uploads_pdfs/' . $nome_pdf;
+
+            $protocolo = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on') ? "https" : "http";
+            $host = $_SERVER['HTTP_HOST'];
+            $pasta_atual = rtrim(dirname($_SERVER['PHP_SELF']), '/\\');
+            $url_destino = "{$protocolo}://{$host}{$pasta_atual}/ver_documento.php?t={$token_pdf}";
+
+            if (extension_loaded('imagick')) {
+                $backend = new ImagickImageBackEnd();
+                $ext_img = 'png';
             } else {
-                // Caso contrário, mantém o caminho antigo
-                $params[] = isset($_POST['qr_code_path_antigo']) ? $_POST['qr_code_path_antigo'] : null;
-                $sql_update .= ", qr_code_path=? ";
+                $backend = new SvgImageBackEnd();
+                $ext_img = 'svg';
+            }
+
+            $renderer = new ImageRenderer(new RendererStyle(400), $backend);
+            $writer = new Writer($renderer);
+            
+            $nome_qrcode_db = 'qr_' . time() . '_' . uniqid() . '.' . $ext_img;
+            $writer->writeFile($url_destino, $dir_qrcodes . $nome_qrcode_db);
+            
+            $atualizar_arquivos = true;
+        }
+
+        if ($_POST['acao'] === 'cadastrar') {
+            // Removido campo 'obrigacao' do INSERT
+            $stmt = $pdo_notificacoes->prepare("
+                INSERT INTO tipos_notificacao 
+                (nome_tipo, capitulacao_infracao, capitulacao_multa, prazo_dias, qr_code_path, caminho_pdf, token_pdf)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+            ");
+            $stmt->execute([$nome_tipo, $cap_infracao, $cap_multa, $prazo, $nome_qrcode_db, $caminho_pdf_db, $token_pdf]);
+            $mensagem = "<div class='alert alert-success'>Modelo cadastrado com sucesso!</div>";
+        } 
+        elseif ($_POST['acao'] === 'atualizar') {
+            $id = $_POST['id_tipo'];
+            
+            if ($atualizar_arquivos) {
+                // Apaga antigos
+                $stmtOld = $pdo_notificacoes->prepare("SELECT qr_code_path, caminho_pdf FROM tipos_notificacao WHERE id_tipo = ?");
+                $stmtOld->execute([$id]);
+                $oldFiles = $stmtOld->fetch(PDO::FETCH_ASSOC);
+                
+                if ($oldFiles['qr_code_path'] && file_exists(__DIR__ . '/qrcodes/' . $oldFiles['qr_code_path'])) unlink(__DIR__ . '/qrcodes/' . $oldFiles['qr_code_path']);
+                if ($oldFiles['caminho_pdf'] && file_exists(__DIR__ . '/' . $oldFiles['caminho_pdf'])) unlink(__DIR__ . '/' . $oldFiles['caminho_pdf']);
+
+                // Removido 'obrigacao' do UPDATE
+                $sql = "UPDATE tipos_notificacao SET 
+                        nome_tipo=?, capitulacao_infracao=?, capitulacao_multa=?, prazo_dias=?, 
+                        qr_code_path=?, caminho_pdf=?, token_pdf=? 
+                        WHERE id_tipo=?";
+                $params = [$nome_tipo, $cap_infracao, $cap_multa, $prazo, $nome_qrcode_db, $caminho_pdf_db, $token_pdf, $id];
+            } else {
+                // Removido 'obrigacao' do UPDATE
+                $sql = "UPDATE tipos_notificacao SET 
+                        nome_tipo=?, capitulacao_infracao=?, capitulacao_multa=?, prazo_dias=? 
+                        WHERE id_tipo=?";
+                $params = [$nome_tipo, $cap_infracao, $cap_multa, $prazo, $id];
             }
             
-            $sql_update .= " WHERE id_tipo=?";
-            $params[] = $modelo_id;
-
-            // Usando $pdo_notificacoes
-            $stmt = $pdo_notificacoes->prepare($sql_update);
+            $stmt = $pdo_notificacoes->prepare($sql);
             $stmt->execute($params);
-            $mensagem = "<div class='p-3 bg-green-100 border border-green-400 text-green-700 rounded mb-4'>Modelo atualizado com sucesso!</div>";
-        } else {
-            // --- OPERAÇÃO DE CADASTRO (INSERT) ---
-            // Removido 'obrigacao' da lista de colunas e um '?' da lista de valores
-            $sql_insert = "INSERT INTO tipos_notificacao (nome_tipo, capitulacao_infracao, capitulacao_multa, qr_code_path) VALUES (?, ?, ?, ?)";
-            // Removido $obrigacao
-            // Usando $pdo_notificacoes
-            $stmt = $pdo_notificacoes->prepare($sql_insert);
-            $stmt->execute([$nome_tipo, $capitulacao_infracao, $capitulacao_multa, $qr_code_file_name]);
-            $mensagem = "<div class='p-3 bg-green-100 border border-green-400 text-green-700 rounded mb-4'>Tipo de Notificação salvo com sucesso!</div>";
+            
+            $mensagem = "<div class='alert alert-primary'>Modelo atualizado com sucesso!</div>";
+            
+            $id_editar = '';
+            $nome_tipo_val = '';
+            $cap_infracao_val = '';
+            $cap_multa_val = '';
+            $prazo_val = '30';
+            $acao_formulario = 'cadastrar';
+            $texto_botao = 'Salvar Modelo e Gerar QR Code';
+            $classe_botao = 'btn-success';
         }
-        
-        // Redireciona para o modo de visualização após a ação
-        header("Location: tipos_notificacao.php?msg=" . urlencode(strip_tags($mensagem)));
-        exit;
-        
-    } catch (PDOException $e) {
-        $mensagem = "<div class='p-3 bg-red-100 border border-red-400 text-red-700 rounded mb-4'>Erro ao processar: " . $e->getMessage() . "</div>";
+
+    } catch (Exception $e) {
+        $mensagem = "<div class='alert alert-danger'>Erro: " . $e->getMessage() . "</div>";
     }
 }
 
-
-// --- LÓGICA DE CARREGAMENTO PARA EDIÇÃO ---
-if (isset($_GET['id']) && is_numeric($_GET['id'])) {
-    $id_para_editar = (int)$_GET['id'];
-    try {
-        // Usando $pdo_notificacoes
-        $stmt = $pdo_notificacoes->prepare("SELECT * FROM tipos_notificacao WHERE id_tipo = ?");
-        $stmt->execute([$id_para_editar]);
-        $modelo_edicao = $stmt->fetch(PDO::FETCH_ASSOC);
-        
-        if (!$modelo_edicao) {
-            $mensagem = "<div class='p-3 bg-red-100 border border-red-400 text-red-700 rounded mb-4'>Modelo não encontrado!</div>";
-        }
-    } catch (PDOException $e) {
-        $mensagem = "<div class='p-3 bg-red-100 border border-red-400 text-red-700 rounded mb-4'>Erro ao carregar modelo: " . $e->getMessage() . "</div>";
-    }
-}
-
-
-// Lógica para listar todos os modelos existentes
-try {
-    // Usando $pdo_notificacoes
-    $modelos = $pdo_notificacoes->query("SELECT id_tipo, nome_tipo FROM tipos_notificacao ORDER BY nome_tipo")->fetchAll(PDO::FETCH_ASSOC);
-} catch (PDOException $e) {
-    $modelos = [];
-    $mensagem .= "<div class='p-3 bg-red-100 border border-red-400 text-red-700 rounded mb-4'>Erro ao carregar modelos: " . $e->getMessage() . "</div>";
-}
+// --- LISTAGEM ---
+$stmt = $pdo_notificacoes->query("SELECT * FROM tipos_notificacao ORDER BY id_tipo DESC");
+$tipos = $stmt->fetchAll(PDO::FETCH_ASSOC);
 ?>
+
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
-    <title>Gerenciamento de Modelos</title>
-    <script src="https://cdn.tailwindcss.com"></script>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gerenciar Tipos de Notificação</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
-        /* CSS customizado para a cor institucional */
-        .focus-institutional:focus {
-            border-color: #003366; 
-            /* Esta linha ajuda a garantir que o ring-color, se usado, seja o azul marinho */
-            --tw-ring-color: #003366;
-        }
+        body { background-color: #f8f9fa; padding: 20px; }
+        .card { box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        .qr-thumb { width: 60px; height: 60px; object-fit: contain; border: 1px solid #ddd; padding: 2px; background: white; }
     </style>
 </head>
-<body class="bg-gray-50 p-8">
+<body>
 
-    <div class="max-w-6xl mx-auto bg-white p-10 rounded-2xl shadow-2xl shadow-gray-300/50">
-        <h1 class="text-3xl font-bold mb-4 text-gray-800 pb-2">Gerenciamento de Modelos de Notificação</h1>
-        
-        <nav class="flex space-x-4 mb-8 p-3 rounded-xl shadow-lg" style="background-color: #003366;">
-            <a href="notificacoes.php" class="py-2 px-4 rounded-lg text-sm font-medium text-white hover:bg-white hover:text-gray-800 transition duration-150">
-                Notificações (Início)
-            </a>
-            <a href="tipos_notificacao.php" class="py-2 px-4 rounded-lg text-sm font-bold bg-white text-gray-800 transition duration-150 shadow-md">
-                Gerenciar Modelos
-            </a>
-            <a href="configuracoes.php" class="py-2 px-4 rounded-lg text-sm font-medium text-white hover:bg-white hover:text-gray-800 transition duration-150">
-                Configurações
-            </a>
-        </nav>
-        
-        <?php if (!empty($_GET['msg'])): ?>
-            <div class='p-4 bg-green-50 border border-green-300 text-green-700 rounded-xl mb-6 font-medium'>
-                <?= htmlspecialchars($_GET['msg']) ?>
-            </div>
-        <?php endif; ?>
-        <?= $mensagem ?>
+<div class="container">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2>Tipos de Notificação (Modelos)</h2>
+        <a href="notificacoes.php" class="btn btn-secondary">Voltar</a>
+    </div>
 
-        <div class="border p-6 rounded-lg mb-8" style="border-color: #DDE2E7; background-color: #F0F4F8;">
-            <h2 class="text-xl font-semibold mb-4 text-gray-700 border-b pb-2">
-                <?= $modelo_edicao ? 'Editar Modelo: ' . htmlspecialchars($modelo_edicao['nome_tipo']) : 'Cadastrar Novo Modelo' ?>
-            </h2>
+    <?php echo $mensagem; ?>
+
+    <div class="card mb-4">
+        <div class="card-header text-white <?php echo ($acao_formulario == 'atualizar') ? 'bg-warning' : 'bg-primary'; ?>">
+            <h5 class="mb-0">
+                <?php 
+                echo ($acao_formulario == 'atualizar') 
+                    ? 'Editando Modelo #' . $id_editar . ' - ' . htmlspecialchars($nome_tipo_val) 
+                    : 'Cadastrar Novo Modelo'; 
+                ?>
+            </h5>
+        </div>
+        <div class="card-body">
             <form method="POST" enctype="multipart/form-data">
-                
-                <?php if ($modelo_edicao): ?>
-                    <input type="hidden" name="id_tipo" value="<?= $modelo_edicao['id_tipo'] ?>">
+                <input type="hidden" name="acao" value="<?php echo $acao_formulario; ?>">
+                <?php if($id_editar): ?>
+                    <input type="hidden" name="id_tipo" value="<?php echo $id_editar; ?>">
                 <?php endif; ?>
                 
-                <div class="mb-4">
-                    <label for="nome_tipo" class="block text-sm font-medium text-gray-700">Nome do Modelo</label>
-                    <input type="text" id="nome_tipo" name="nome_tipo" required
-                           value="<?= $modelo_edicao ? htmlspecialchars($modelo_edicao['nome_tipo']) : '' ?>"
-                           class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-2 focus-institutional">
+                <div class="row">
+                    <div class="col-md-9 mb-3">
+                        <label class="form-label fw-bold">Nome do Tipo:</label>
+                        <input type="text" name="nome_tipo" class="form-control" placeholder="Ex: Som Alto" value="<?php echo htmlspecialchars($nome_tipo_val); ?>" required>
+                    </div>
+                    <div class="col-md-3 mb-3">
+                        <label class="form-label">Prazo Padrão (dias):</label>
+                        <input type="number" name="prazo_dias" class="form-control" value="<?php echo htmlspecialchars($prazo_val); ?>">
+                    </div>
                 </div>
 
-                <div class="mb-4">
-                    <label for="capitulacao_infracao" class="block text-sm font-medium text-gray-700">CAPTULAÇÃO DA INFRAÇÃO:</label>
-                    <textarea id="capitulacao_infracao" name="capitulacao_infracao" rows="3" required
-                              class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-2 focus-institutional"><?= $modelo_edicao ? htmlspecialchars($modelo_edicao['capitulacao_infracao']) : '' ?></textarea>
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label">Capitulação da Infração:</label>
+                        <textarea name="capitulacao_infracao" class="form-control" rows="2"><?php echo htmlspecialchars($cap_infracao_val); ?></textarea>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label">Capitulação da Multa:</label>
+                        <textarea name="capitulacao_multa" class="form-control" rows="2"><?php echo htmlspecialchars($cap_multa_val); ?></textarea>
+                    </div>
                 </div>
 
-                <div class="mb-6">
-                    <label for="capitulacao_multa" class="block text-sm font-medium text-gray-700">CAPITULAÇÃO A MULTA:</label>
-                    <textarea id="capitulacao_multa" name="capitulacao_multa" rows="3" required
-                              class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-2 focus-institutional"><?= $modelo_edicao ? htmlspecialchars($modelo_edicao['capitulacao_multa']) : '' ?></textarea>
+                <div class="mb-3 p-3 bg-light border rounded">
+                    <label class="form-label fw-bold text-primary">
+                        <?php echo ($acao_formulario == 'atualizar') ? 'Substituir Documento (PDF) - Opcional' : 'Anexar Documento (PDF)'; ?>
+                    </label>
+                    <input type="file" name="pdf_anexo" class="form-control" accept="application/pdf">
+                    <div class="form-text">
+                        O sistema irá gerar automaticamente um <strong>QR Code</strong> que aponta para este documento.
+                    </div>
                 </div>
-                
-                <div class="mb-6 border p-4 rounded-lg bg-yellow-50">
-                    <label for="qr_code_file" class="block text-sm font-bold text-gray-800">Imagem QR Code (PNG/JPG):</label>
-                    
-                    <p class="text-xs text-gray-600 mb-3">
-                        Gere o QR Code em: <a href="https://www.qrcode-monkey.com/pt/" target="_blank" class="hover:underline font-medium" style="color: #003366;">www.qrcode-monkey.com/pt</a>
-                    </p>
-                    <?php if ($modelo_edicao && $modelo_edicao['qr_code_path']): ?>
-                        <div class="mb-3 flex items-center space-x-4">
-                            <p class="text-sm text-gray-600">Arquivo Atual:</p>
-                            <img src="<?= $upload_dir . htmlspecialchars($modelo_edicao['qr_code_path']) ?>" alt="QR Code Atual" class="h-12 w-12 border rounded p-1">
-                            <input type="hidden" name="qr_code_path_antigo" value="<?= htmlspecialchars($modelo_edicao['qr_code_path']) ?>">
-                        </div>
-                        <p class="text-xs text-red-600 mb-2">Envie um novo arquivo APENAS se quiser substituir o QR Code acima.</p>
+
+                <div class="d-flex gap-2">
+                    <button type="submit" class="btn <?php echo $classe_botao; ?> flex-grow-1"><?php echo $texto_botao; ?></button>
+                    <?php if ($acao_formulario == 'atualizar'): ?>
+                        <a href="tipos_notificacao.php" class="btn btn-outline-secondary">Cancelar Edição</a>
                     <?php endif; ?>
-                    
-                    <input type="file" id="qr_code_file" name="qr_code_file" accept="image/png, image/jpeg" 
-                           class="mt-1 block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-yellow-100 file:text-yellow-700 hover:file:bg-yellow-200"/>
                 </div>
-
-                <button type="submit"
-                        class="w-full text-white py-2 px-4 rounded-md shadow-md transition duration-150 focus:outline-none focus:ring-2 focus:ring-offset-2 focus-institutional"
-                        style="background-color: #003366;" 
-                        onmouseover="this.style.backgroundColor='#002244'" 
-                        onmouseout="this.style.backgroundColor='#003366'">
-                    <?= $modelo_edicao ? 'Salvar Alterações' : 'Salvar Novo Modelo' ?>
-                </button>
-                <?php if ($modelo_edicao): ?>
-                    <a href="tipos_notificacao.php" class="mt-2 block text-center text-sm hover:text-gray-800" style="color: #003366;">Cancelar Edição</a>
-                <?php endif; ?>
             </form>
         </div>
+    </div>
 
-        <h2 class="text-2xl font-semibold mb-4 text-gray-700 border-b pb-2">Modelos Existentes (Clique para Editar)</h2>
-        <div class="bg-white p-4 border rounded-md shadow-sm">
-            <?php if (!empty($modelos)): ?>
-                <?php foreach ($modelos as $modelo): ?>
-                    <div class="p-3 border-b last:border-b-0 hover:bg-gray-100 rounded">
-                        <a href="tipos_notificacao.php?id=<?= $modelo['id_tipo'] ?>" class="font-medium hover:underline" style="color: #003366;">
-                            <?= htmlspecialchars($modelo['nome_tipo']) ?>
-                        </a>
-                    </div>
-                <?php endforeach; ?>
-            <?php else: ?>
-                <p class="text-gray-500">Nenhum modelo cadastrado.</p>
-            <?php endif; ?>
+    <div class="card">
+        <div class="card-header">
+            <h5 class="mb-0">Modelos Cadastrados</h5>
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-striped table-hover mb-0 align-middle">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Nome</th>
+                            <th>Prazo</th>
+                            <th>QR Code</th>
+                            <th style="width: 150px;">Ações</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php if (count($tipos) > 0): ?>
+                            <?php foreach ($tipos as $tipo): ?>
+                            <tr>
+                                <td><?php echo $tipo['id_tipo']; ?></td>
+                                <td>
+                                    <strong><?php echo htmlspecialchars($tipo['nome_tipo']); ?></strong><br>
+                                    <small class="text-muted"><?php echo mb_substr($tipo['capitulacao_infracao'], 0, 50, 'UTF-8') . '...'; ?></small>
+                                </td>
+                                <td><?php echo isset($tipo['prazo_dias']) ? $tipo['prazo_dias'] : '-'; ?> dias</td>
+                                <td>
+                                    <?php 
+                                    $caminho_qr = __DIR__ . '/qrcodes/' . ($tipo['qr_code_path'] ?? '');
+                                    if (!empty($tipo['qr_code_path']) && file_exists($caminho_qr)): 
+                                    ?>
+                                        <a href="qrcodes/<?php echo $tipo['qr_code_path']; ?>" target="_blank">
+                                            <img src="qrcodes/<?php echo $tipo['qr_code_path']; ?>" class="qr-thumb" alt="QR">
+                                        </a>
+                                    <?php else: ?>
+                                        <span class="badge bg-secondary">Sem QR</span>
+                                    <?php endif; ?>
+                                </td>
+                                <td>
+                                    <div class="btn-group" role="group">
+                                        <a href="tipos_notificacao.php?acao=editar&id=<?php echo $tipo['id_tipo']; ?>" class="btn btn-sm btn-outline-primary" title="Editar">Editar</a>
+                                        <a href="tipos_notificacao.php?acao=excluir&id=<?php echo $tipo['id_tipo']; ?>" class="btn btn-sm btn-outline-danger" onclick="return confirm('Tem certeza?');" title="Excluir">Excluir</a>
+                                    </div>
+                                </td>
+                            </tr>
+                            <?php endforeach; ?>
+                        <?php else: ?>
+                            <tr><td colspan="5" class="text-center p-3">Nenhum modelo encontrado.</td></tr>
+                        <?php endif; ?>
+                    </tbody>
+                </table>
+            </div>
         </div>
     </div>
+</div>
 </body>
 </html>

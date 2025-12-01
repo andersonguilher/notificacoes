@@ -1,119 +1,95 @@
 <?php
 // configuracoes.php
-// Inclui o db.php centralizado, que agora define $pdo_notificacoes
-require_once __DIR__ . '/../../db.php';
+ini_set('display_errors', 1);
+ini_set('display_startup_errors', 1);
+error_reporting(E_ALL);
+
+require_once __DIR__ . '/../../db.php'; 
 
 $mensagem = '';
-$configuracao_atual = [];
-$chave_notificacao = 'numero_inicial_notificacao';
 
-// Lógica de SALVAMENTO
+// --- PROCESSAR SALVAMENTO ---
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $valor = isset($_POST['valor']) ? (int)$_POST['valor'] : null;
+    try {
+        $novo_numero = (int)$_POST['numero_inicial'];
+        
+        // Verifica se a configuração já existe
+        $stmt = $pdo_notificacoes->prepare("SELECT COUNT(*) FROM configuracoes WHERE chave = 'numero_inicial_notificacao'");
+        $stmt->execute();
+        $existe = $stmt->fetchColumn();
 
-    if ($valor !== null) {
-        // Todas as chamadas ao banco agora usam $pdo_notificacoes
-        try {
-            $pdo_notificacoes->beginTransaction();
-            // Verifica se existe
-            $stmt_check = $pdo_notificacoes->prepare("SELECT COUNT(*) FROM configuracoes WHERE chave = ?");
-            $stmt_check->execute([$chave_notificacao]);
-            
-            if ($stmt_check->fetchColumn() > 0) {
-                // Atualiza
-                $stmt = $pdo_notificacoes->prepare("UPDATE configuracoes SET valor = ? WHERE chave = ?");
-                $stmt->execute([$valor, $chave_notificacao]);
-            } else {
-                // Insere
-                $stmt = $pdo_notificacoes->prepare("INSERT INTO configuracoes (chave, valor) VALUES (?, ?)");
-                $stmt->execute([$chave_notificacao, $valor]);
-            }
-            $pdo_notificacoes->commit();
-            $mensagem = "<div class='p-3 bg-green-100 border border-green-400 text-green-700 rounded-lg'>Configuração salva com sucesso!</div>";
-
-        } catch (PDOException $e) {
-            $pdo_notificacoes->rollBack();
-            $mensagem = "<div class='p-3 bg-red-100 border border-red-400 text-red-700 rounded-lg'>Erro ao salvar: " . $e->getMessage() . "</div>";
+        if ($existe) {
+            $stmtUpdate = $pdo_notificacoes->prepare("UPDATE configuracoes SET valor = ? WHERE chave = 'numero_inicial_notificacao'");
+            $stmtUpdate->execute([$novo_numero]);
+        } else {
+            $stmtInsert = $pdo_notificacoes->prepare("INSERT INTO configuracoes (chave, valor) VALUES ('numero_inicial_notificacao', ?)");
+            $stmtInsert->execute([$novo_numero]);
         }
+
+        $mensagem = "<div class='alert alert-success'>Configuração salva com sucesso!</div>";
+
+    } catch (PDOException $e) {
+        $mensagem = "<div class='alert alert-danger'>Erro ao salvar: " . $e->getMessage() . "</div>";
     }
 }
 
-// Lógica de CARREGAMENTO
-// Todas as chamadas ao banco agora usam $pdo_notificacoes
+// --- CARREGAR VALOR ATUAL ---
 try {
-    $stmt_config = $pdo_notificacoes->prepare("SELECT valor FROM configuracoes WHERE chave = ?");
-    $stmt_config->execute([$chave_notificacao]);
-    $config = $stmt_config->fetch(PDO::FETCH_ASSOC);
-    $valor_atual = $config ? (int)$config['valor'] : 1;
+    $stmt = $pdo_notificacoes->query("SELECT valor FROM configuracoes WHERE chave = 'numero_inicial_notificacao'");
+    $valor_atual = $stmt->fetchColumn();
+    if (!$valor_atual) $valor_atual = 146; // Valor padrão se não existir
 } catch (PDOException $e) {
-    $valor_atual = 1; 
-    $mensagem .= "<div class='p-3 bg-yellow-100 border border-yellow-400 text-yellow-700 rounded-lg'>Aviso: Não foi possível carregar a configuração. Usando valor padrão (1).</div>";
+    $mensagem = "<div class='alert alert-danger'>Erro ao ler configurações: " . $e->getMessage() . "</div>";
+    $valor_atual = 0;
 }
-
 ?>
+
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Configurações do Sistema</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <style>
-        /* CSS customizado para a cor institucional */
-        .focus-institutional:focus {
-            border-color: #003366; 
-            --tw-ring-color: #003366;
-        }
-        /* Para manter a fonte consistente */
-        body {
-            font-family: ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
-        }
-    </style>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
 </head>
-<body class="bg-gray-100 p-8">
-    
-    <div class="max-w-6xl mx-auto bg-white p-10 rounded-2xl shadow-2xl shadow-gray-300/50">
-        <h1 class="text-3xl font-bold mb-4 text-gray-800 pb-2">Configurações do Sistema</h1>
-        
-        <nav class="flex space-x-4 mb-8 p-3 rounded-xl shadow-lg" style="background-color: #003366;">
-            <a href="notificacoes.php" class="py-2 px-4 rounded-lg text-sm font-medium text-white hover:bg-white hover:text-gray-800 transition duration-150">
-                Notificações (Início)
-            </a>
-            <a href="tipos_notificacao.php" class="py-2 px-4 rounded-lg text-sm font-medium text-white hover:bg-white hover:text-gray-800 transition duration-150">
-                Gerenciar Modelos
-            </a>
-            <a href="configuracoes.php" class="py-2 px-4 rounded-lg text-sm font-bold bg-white text-gray-800 transition duration-150 shadow-md">
-                Configurações
-            </a>
-        </nav>
-        
-        <?= $mensagem ?>
+<body class="bg-light">
 
-        <div class="border p-6 rounded-lg" style="border-color: #DDE2E7; background-color: #F0F4F8;">
-            <h2 class="text-xl font-semibold mb-4 border-b pb-2" style="color: #003366; border-color: #DDE2E7;">Numeração de Documentos</h2>
+<div class="container mt-5">
+    <div class="row justify-content-center">
+        <div class="col-md-6">
             
-            <p class="mb-4 text-gray-600">
-                Define o número inicial para a próxima Notificação a ser gerada. 
-                Se o último número emitido for maior que este valor, o sistema usará o próximo número sequencial.
-            </p>
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h2>Configurações</h2>
+                <a href="notificacoes.php" class="btn btn-secondary">Voltar</a>
+            </div>
 
-            <form method="POST">
-                <div class="mb-4">
-                    <label for="numero_inicial" class="block text-sm font-medium text-gray-700">Próximo Número a ser Usado:</label>
-                    <input type="number" id="numero_inicial" name="valor" required
-                           value="<?= $valor_atual ?>" min="1"
-                           class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-2 focus-institutional">
+            <?php echo $mensagem; ?>
+
+            <div class="card shadow-sm">
+                <div class="card-header bg-white">
+                    <h5 class="mb-0 text-secondary">Numeração de Documentos</h5>
                 </div>
-                
-                <button type="submit"
-                        class="w-full text-white py-2 px-4 rounded-md shadow-md transition duration-150 focus:outline-none focus:ring-2 focus:ring-offset-2 focus-institutional"
-                        style="background-color: #003366;" 
-                        onmouseover="this.style.backgroundColor='#002244'" 
-                        onmouseout="this.style.backgroundColor='#003366'">
-                    Salvar Configuração
-                </button>
-            </form>
+                <div class="card-body">
+                    <form method="POST">
+                        <div class="mb-3">
+                            <label for="numero_inicial" class="form-label fw-bold">Número Inicial da Notificação</label>
+                            <input type="number" name="numero_inicial" id="numero_inicial" class="form-control form-control-lg" value="<?php echo htmlspecialchars($valor_atual); ?>" required>
+                            <div class="form-text text-muted">
+                                Defina qual será o número usado caso não haja nenhuma notificação no banco. <br>
+                                <em>Se já existirem notificações, o sistema ignorará este campo e usará o último número + 1.</em>
+                            </div>
+                        </div>
+
+                        <div class="d-grid">
+                            <button type="submit" class="btn btn-primary">Salvar Configuração</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
         </div>
-        
     </div>
+</div>
+
 </body>
 </html>

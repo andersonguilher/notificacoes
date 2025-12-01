@@ -1,83 +1,50 @@
--- Definições iniciais
 SET SQL_MODE = "NO_AUTO_VALUE_ON_ZERO";
 START TRANSACTION;
 SET time_zone = "+00:00";
 
-/*!40101 SET @OLD_CHARACTER_SET_CLIENT=@@CHARACTER_SET_CLIENT */;
-/*!40101 SET @OLD_CHARACTER_SET_RESULTS=@@CHARACTER_SET_RESULTS */;
-/*!40101 SET @OLD_COLLATION_CONNECTION=@@COLLATION_CONNECTION */;
-/*!40101 SET NAMES utf8mb4 */;
-
---
--- Banco de dados: `notificacoes`
---
-CREATE DATABASE IF NOT EXISTS `notificacoes` DEFAULT CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci;
-USE `notificacoes`;
-
--- --------------------------------------------------------
-
---
--- Estrutura para tabela `configuracoes`
---
-
+-- 1. TABELA DE CONFIGURAÇÕES
 CREATE TABLE IF NOT EXISTS `configuracoes` (
   `chave` varchar(50) NOT NULL,
   `valor` varchar(255) NOT NULL,
   PRIMARY KEY (`chave`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
--- --------------------------------------------------------
+-- Insere o valor padrão inicial
+INSERT INTO `configuracoes` (`chave`, `valor`) VALUES ('numero_inicial_notificacao', '146');
 
---
--- Estrutura para tabela `notificacoes`
---
-
-CREATE TABLE IF NOT EXISTS `notificacoes` (
-  `id_notificacao` int NOT NULL AUTO_INCREMENT,
-  `numero_documento` varchar(10) NOT NULL,
-  `id_tipo` int NOT NULL,
-  `nome_proprietario` varchar(255) NOT NULL,
-  `logradouro` varchar(255) NOT NULL,
-  `bairro` varchar(255) NOT NULL,
-  `prazo_dias` int DEFAULT '30',
-  `data_emissao` date NOT NULL,
-  `status` enum('Emitida','Entregue','Arquivada','Cancelada') DEFAULT 'Emitida',
-  `data_registro` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
-  `obrigacao` text,
-  `protocolo_1746` varchar(255) DEFAULT NULL,
-  PRIMARY KEY (`id_notificacao`),
-  UNIQUE KEY `numero_documento` (`numero_documento`),
-  KEY `id_tipo` (`id_tipo`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3;
-
--- --------------------------------------------------------
-
---
--- Estrutura para tabela `tipos_notificacao`
---
-
+-- 2. TABELA DE TIPOS (MODELOS)
 CREATE TABLE IF NOT EXISTS `tipos_notificacao` (
-  `id_tipo` int NOT NULL AUTO_INCREMENT,
+  `id_tipo` int(11) NOT NULL AUTO_INCREMENT,
   `nome_tipo` varchar(255) NOT NULL,
   `capitulacao_infracao` text NOT NULL,
   `capitulacao_multa` text NOT NULL,
-  `ativo` tinyint(1) DEFAULT '1',
-  `data_criacao` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+  `prazo_dias` int(11) DEFAULT 30,
+  `ativo` tinyint(1) DEFAULT 1,
+  `data_criacao` timestamp NULL DEFAULT current_timestamp(),
   `qr_code_path` varchar(255) DEFAULT NULL,
+  `caminho_pdf` varchar(255) DEFAULT NULL,
+  `token_pdf` varchar(64) DEFAULT NULL,
   PRIMARY KEY (`id_tipo`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
---
--- Restrições para tabelas despejadas
---
+-- 3. TABELA DE NOTIFICAÇÕES
+CREATE TABLE IF NOT EXISTS `notificacoes` (
+  `id_notificacao` int(11) NOT NULL AUTO_INCREMENT,
+  `numero_documento` varchar(20) NOT NULL,
+  `id_tipo` int(11) NOT NULL,
+  `nome_proprietario` varchar(255) DEFAULT NULL,
+  `logradouro` varchar(255) NOT NULL,
+  `bairro` varchar(100) NOT NULL,
+  `prazo_dias` int(11) DEFAULT 30,
+  `data_emissao` date NOT NULL,
+  `status` enum('Emitida','Entregue','Cancelada') DEFAULT 'Emitida',
+  `obrigacao` text NOT NULL,
+  `protocolo_1746` varchar(50) DEFAULT NULL,
+  `data_registro` timestamp NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`id_notificacao`),
+  UNIQUE KEY `numero_documento` (`numero_documento`),
+  KEY `fk_tipo_notificacao` (`id_tipo`),
+  CONSTRAINT `fk_tipo_notificacao` FOREIGN KEY (`id_tipo`) REFERENCES `tipos_notificacao` (`id_tipo`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
---
--- Restrições para tabelas `notificacoes`
---
-ALTER TABLE `notificacoes`
-  ADD CONSTRAINT `notificacoes_ibfk_1` FOREIGN KEY (`id_tipo`) REFERENCES `tipos_notificacao` (`id_tipo`);
 COMMIT;
-
-/*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;
-/*!40101 SET CHARACTER_SET_RESULTS=@OLD_CHARACTER_SET_RESULTS */;
-/*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
